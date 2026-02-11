@@ -1,0 +1,378 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1770802466780,
+  "projectRoot": "/Users/ddphuong/Projects/agent-kit/epost-agent-kit-cli",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=18.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "vitest",
+        "version": "2.1.8",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 18.0.0"
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": "npm test",
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "build": "tsc",
+      "dev": "tsc --watch",
+      "test": "vitest run",
+      "test:watch": "vitest",
+      "lint": "eslint src tests",
+      "typecheck": "tsc --noEmit",
+      "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 4,
+      "lastAccessed": 1770802466761,
+      "keyFiles": [
+        "cli.d.ts",
+        "cli.d.ts.map",
+        "cli.js",
+        "cli.js.map"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 1,
+      "lastAccessed": 1770802466766,
+      "keyFiles": [
+        "cli.ts"
+      ]
+    },
+    "dist/services": {
+      "path": "dist/services",
+      "purpose": "Business logic services",
+      "fileCount": 0,
+      "lastAccessed": 1770802466767,
+      "keyFiles": []
+    },
+    "dist/types": {
+      "path": "dist/types",
+      "purpose": "Type definitions",
+      "fileCount": 16,
+      "lastAccessed": 1770802466767,
+      "keyFiles": [
+        "commands.d.ts",
+        "commands.d.ts.map",
+        "commands.js"
+      ]
+    },
+    "src/services": {
+      "path": "src/services",
+      "purpose": "Business logic services",
+      "fileCount": 0,
+      "lastAccessed": 1770802466768,
+      "keyFiles": []
+    },
+    "src/types": {
+      "path": "src/types",
+      "purpose": "Type definitions",
+      "fileCount": 4,
+      "lastAccessed": 1770802466769,
+      "keyFiles": [
+        "commands.ts",
+        "errors.ts",
+        "index.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/commands/init.ts",
+      "accessCount": 17,
+      "lastAccessed": 1770802840919,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/packages/profile-loader.ts",
+      "accessCount": 11,
+      "lastAccessed": 1770802924349,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/versions.ts",
+      "accessCount": 9,
+      "lastAccessed": 1770802704817,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/packages/package-resolver.ts",
+      "accessCount": 8,
+      "lastAccessed": 1770803488751,
+      "type": "file"
+    },
+    {
+      "path": "tests/domains/package-resolver.test.ts",
+      "accessCount": 8,
+      "lastAccessed": 1770803524713,
+      "type": "file"
+    },
+    {
+      "path": "tests/shared/path-resolver.test.ts",
+      "accessCount": 7,
+      "lastAccessed": 1770803504995,
+      "type": "file"
+    },
+    {
+      "path": "tests/services/ownership-tracker.test.ts",
+      "accessCount": 6,
+      "lastAccessed": 1770803427484,
+      "type": "file"
+    },
+    {
+      "path": "tests/shared/file-system.test.ts",
+      "accessCount": 6,
+      "lastAccessed": 1770803792030,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/new.ts",
+      "accessCount": 5,
+      "lastAccessed": 1770802658139,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/update.ts",
+      "accessCount": 5,
+      "lastAccessed": 1770802659032,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/onboard.ts",
+      "accessCount": 5,
+      "lastAccessed": 1770802897911,
+      "type": "file"
+    },
+    {
+      "path": "src/shared/path-resolver.ts",
+      "accessCount": 4,
+      "lastAccessed": 1770803480805,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/dev.ts",
+      "accessCount": 3,
+      "lastAccessed": 1770802599324,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/uninstall.ts",
+      "accessCount": 3,
+      "lastAccessed": 1770802651096,
+      "type": "file"
+    },
+    {
+      "path": "src/types/errors.ts",
+      "accessCount": 3,
+      "lastAccessed": 1770802706526,
+      "type": "file"
+    },
+    {
+      "path": "vitest.config.ts",
+      "accessCount": 3,
+      "lastAccessed": 1770803035548,
+      "type": "file"
+    },
+    {
+      "path": "tests/cli/smoke.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1770803070303,
+      "type": "file"
+    },
+    {
+      "path": "tests/shared/environment.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1770803437137,
+      "type": "file"
+    },
+    {
+      "path": "tests/cli/command-registry.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1770803510810,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/help/claude-md-generator.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802564464,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/packages/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802573708,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/help/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802582419,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/installation/claude-md-generator.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802609967,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/ui/ui.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802612093,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/doctor.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802624601,
+      "type": "file"
+    },
+    {
+      "path": "src/domains/ui/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802676841,
+      "type": "file"
+    },
+    {
+      "path": "src/shared/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770802783057,
+      "type": "file"
+    },
+    {
+      "path": "src/shared/environment.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770803358622,
+      "type": "file"
+    },
+    {
+      "path": "src/services/file-operations/ownership.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770803359024,
+      "type": "file"
+    },
+    {
+      "path": "tests/commands/init-command.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770803541221,
+      "type": "file"
+    },
+    {
+      "path": "tests/shared/terminal-utils.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770803636322,
+      "type": "file"
+    },
+    {
+      "path": "tests/shared/logger.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770803666882,
+      "type": "file"
+    },
+    {
+      "path": "src/shared/constants.ts",
+      "accessCount": 2,
+      "lastAccessed": 1770803689573,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 1,
+      "lastAccessed": 1770802667117,
+      "type": "directory"
+    },
+    {
+      "path": "src",
+      "accessCount": 1,
+      "lastAccessed": 1770802671261,
+      "type": "directory"
+    },
+    {
+      "path": "tests/helpers/test-utils.ts",
+      "accessCount": 1,
+      "lastAccessed": 1770803323429,
+      "type": "file"
+    },
+    {
+      "path": "tests/helpers/temp-project.ts",
+      "accessCount": 1,
+      "lastAccessed": 1770803328882,
+      "type": "file"
+    },
+    {
+      "path": "src/cli.ts",
+      "accessCount": 1,
+      "lastAccessed": 1770803368973,
+      "type": "file"
+    },
+    {
+      "path": "tests/domains/yaml-parser.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1770803408063,
+      "type": "file"
+    },
+    {
+      "path": "src/services/file-operations/checksum.ts",
+      "accessCount": 1,
+      "lastAccessed": 1770803413987,
+      "type": "file"
+    },
+    {
+      "path": "src/shared/logger.ts",
+      "accessCount": 1,
+      "lastAccessed": 1770803621490,
+      "type": "file"
+    },
+    {
+      "path": "src/shared/file-system.ts",
+      "accessCount": 1,
+      "lastAccessed": 1770803730260,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
