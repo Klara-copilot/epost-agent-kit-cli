@@ -84,10 +84,19 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
 
   // ── Step 1/7: Find packages ──
   logger.step(1, 7, "Locating packages");
-  const packagesDir = await kitPaths.getPackagesDir();
-  logger.debug(`Using packages from: ${packagesDir}`);
 
-  const profilesPath = await kitPaths.getProfilesPath();
+  // Use global packages directory from GitHub download
+  const { homedir } = await import('node:os');
+  const packagesDir = join(homedir(), '.epost-kit', 'packages');
+  const profilesPath = join(homedir(), '.epost-kit', 'profiles', 'profiles.yaml');
+
+  if (!(await dirExists(packagesDir))) {
+    throw new Error(
+      'Packages not found. Run "epost-kit init" first to download packages from GitHub.'
+    );
+  }
+
+  logger.debug(`Using packages from: ${packagesDir}`);
 
   const metadata = await readMetadata(projectDir);
   const isUpdate = !!metadata && !opts.fresh;
@@ -747,7 +756,7 @@ export async function runInit(opts: InitOptions): Promise<void> {
     );
 
     // Step 5: Copy packages and profiles
-    await copyPackagesAndProfiles(extractedDir, opts.dir);
+    await copyPackagesAndProfiles(extractedDir);
 
     // Step 6: Continue with package installation
     return runPackageInit(opts);

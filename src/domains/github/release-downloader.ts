@@ -5,12 +5,11 @@
 
 import { join } from 'node:path';
 import { mkdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { extract } from 'tar';
 import ora from 'ora';
 import { logger } from '@/shared/logger.js';
 import { safeCopyDir, fileExists } from '@/shared/file-system.js';
-import { KitPathResolver } from '@/shared/path-resolver.js';
 import { getCachedRelease, cacheRelease } from './release-cache.js';
 import { validateRelease } from './release-validator.js';
 import { fetchLatestRelease, downloadRelease } from './github-client.js';
@@ -102,18 +101,13 @@ export async function downloadLatestRelease(
 }
 
 /**
- * Copy packages and profiles from extracted release
+ * Copy packages and profiles from extracted release to global directory
  * @param extractedDir Path to extracted release directory
- * @param targetDir Optional target directory (defaults to process.cwd())
  */
 export async function copyPackagesAndProfiles(
   extractedDir: string,
-  targetDir?: string,
 ): Promise<void> {
   const spinner = ora('Validating release structure...').start();
-
-  // Create resolver lazily with correct working directory
-  const kitPaths = new KitPathResolver(targetDir || process.cwd());
 
   // 1. Validate release structure
   const validationResult = await validateRelease(extractedDir);
@@ -135,17 +129,22 @@ export async function copyPackagesAndProfiles(
   // 2. Copy packages directory
   spinner.start('Copying packages...');
   const packagesSource = join(extractedDir, 'packages');
-  const packagesDir = await kitPaths.getPackagesDir();
 
-  await safeCopyDir(packagesSource, packagesDir);
-  spinner.succeed(`Packages copied to ${packagesDir}`);
+  // For GitHub-only distribution, use a global packages directory
+  const globalPackagesDir = join(homedir(), '.epost-kit', 'packages');
+  await mkdir(globalPackagesDir, { recursive: true });
+
+  await safeCopyDir(packagesSource, globalPackagesDir);
+  spinner.succeed(`Packages copied to ${globalPackagesDir}`);
 
   // 3. Copy profiles.yaml if exists
   const profilesSource = join(extractedDir, 'profiles', 'profiles.yaml');
 
   if (await fileExists(profilesSource)) {
     spinner.start('Copying profiles...');
-    const profilesPath = await kitPaths.getProfilesPath();
+    const globalProfilesDir = join(homedir(), '.epost-kit', 'profiles');
+    await mkdir(globalProfilesDir, { recursive: true });
+    const profilesPath = join(globalProfilesDir, 'profiles.yaml');
     const { copyFile } = await import('node:fs/promises');
     await copyFile(profilesSource, profilesPath);
     spinner.succeed(`Profiles copied to ${profilesPath}`);
