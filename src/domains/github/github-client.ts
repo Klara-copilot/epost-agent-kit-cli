@@ -17,6 +17,8 @@ export interface GitHubRelease {
   draft: boolean;
   prerelease: boolean;
   published_at: string;
+  tarball_url: string;
+  zipball_url: string;
   assets: Array<{
     name: string;
     browser_download_url: string;

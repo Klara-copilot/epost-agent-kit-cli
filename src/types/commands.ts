@@ -13,7 +13,6 @@ export interface NewOptions extends GlobalOptions {
 }
 
 export interface InitOptions extends GlobalOptions {
-  kit?: string;
   profile?: string;
   packages?: string;
   optional?: string;
@@ -21,6 +20,7 @@ export interface InitOptions extends GlobalOptions {
   fresh?: boolean;
   dryRun?: boolean;
   dir?: string;
+  forceDownload?: boolean; // Skip cache, always download fresh release
 }
 
 export interface DoctorOptions extends GlobalOptions {

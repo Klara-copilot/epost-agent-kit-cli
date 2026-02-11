@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^7.2.0",
+    "@types/tar": "^6.1.13",
     "cac": "^6.7.14",
     "cli-table3": "^0.6.5",
     "cosmiconfig": "^9.0.0",
@@ -56,6 +57,7 @@
     "minimatch": "^10.1.2",
     "ora": "^8.1.1",
     "picocolors": "^1.1.1",
+    "tar": "^7.5.7",
     "zod": "^3.24.1"
   },
   "devDependencies": {
