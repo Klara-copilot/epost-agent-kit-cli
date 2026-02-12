@@ -136,14 +136,14 @@ clone_repository() {
     local temp_dir
     temp_dir="/tmp/epost-kit-$(date +%s)"
 
-    print_info "Cloning repository to temporary directory..."
+    print_info "Cloning repository to temporary directory..." >&2
 
     if ! gh repo clone "$REPO" "$temp_dir" -- --quiet; then
-        print_error "Failed to clone repository"
+        print_error "Failed to clone repository" >&2
         exit 1
     fi
 
-    print_success "Repository cloned to $temp_dir"
+    print_success "Repository cloned to $temp_dir" >&2
     echo "$temp_dir"
 }
 
