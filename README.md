@@ -8,19 +8,21 @@ Command-line interface for managing ePost Agent Kit installations, packages, and
 
 ### One-Line Install
 
+**Note:** Authenticate first with `gh auth login`
+
 **macOS / Linux:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.sh | bash
+gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh --jq .content | base64 -d | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-iwr https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.ps1 -UseBasicParsing | iex
+$script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq .content | base64 -d; Invoke-Expression $script
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.cmd -o %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
+gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.cmd --jq .content > %TEMP%\install-epost-b64.txt && certutil -decode %TEMP%\install-epost-b64.txt %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
 ```
 
 **Prerequisites:**
