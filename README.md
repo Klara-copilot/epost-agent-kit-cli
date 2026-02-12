@@ -10,17 +10,17 @@ Command-line interface for managing ePost Agent Kit installations, packages, and
 
 **macOS / Linux:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/main/epost-agent-kit-cli/install/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-iwr https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/main/epost-agent-kit-cli/install/install.ps1 -UseBasicParsing | iex
+iwr https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.ps1 -UseBasicParsing | iex
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/main/epost-agent-kit-cli/install/install.cmd -o %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.cmd -o %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
 ```
 
 **Prerequisites:**
