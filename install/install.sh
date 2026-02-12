@@ -244,7 +244,7 @@ print_next_steps() {
 
 # Main installation flow
 main() {
-    local temp_dir=""
+    temp_dir=""
 
     # Trap cleanup on exit
     trap 'cleanup "$temp_dir"' EXIT
