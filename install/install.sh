@@ -174,21 +174,31 @@ build_cli() {
 }
 
 install_cli() {
-    print_info "Installing CLI globally..."
+    print_info "Creating package tarball..."
 
-    if npm link &> /dev/null; then
+    local tarball
+    if ! tarball=$(npm pack --silent 2>&1 | tail -1); then
+        print_error "Failed to create package tarball"
+        exit 1
+    fi
+
+    print_info "Installing CLI globally from tarball..."
+
+    if npm install -g "$tarball" &> /dev/null; then
         print_success "CLI installed globally"
-    elif sudo npm link &> /dev/null; then
+    elif sudo npm install -g "$tarball" &> /dev/null; then
         print_warning "Required sudo permissions for global installation"
         print_success "CLI installed globally with sudo"
     else
         print_error "Failed to install CLI globally"
         echo ""
         echo "Try running manually:"
-        echo "  cd $PWD"
-        echo "  sudo npm link"
+        echo "  npm install -g $tarball"
         exit 1
     fi
+
+    # Clean up tarball
+    rm -f "$tarball"
 }
 
 verify_installation() {

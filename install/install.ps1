@@ -193,19 +193,30 @@ function Install-EPostKit {
             }
             Write-Success "Build completed"
 
-            # Step 11: Install globally
-            Write-Info "Installing ePost-Kit CLI globally..."
+            # Step 11: Create package tarball
+            Write-Info "Creating package tarball..."
+
+            $tarball = npm pack --silent 2>&1 | Select-Object -Last 1
+            if ($LASTEXITCODE -ne 0 -or -not $tarball) {
+                Write-Error "Failed to create package tarball"
+                exit 1
+            }
+
+            # Step 12: Install globally from tarball
+            Write-Info "Installing ePost-Kit CLI globally from tarball..."
 
             try {
-                npm link 2>&1 | Out-Null
+                npm install -g $tarball 2>&1 | Out-Null
                 if ($LASTEXITCODE -ne 0) {
-                    Write-Warning "npm link failed (may require administrator privileges)"
+                    Write-Warning "npm install failed (may require administrator privileges)"
                     Write-Info "Try running PowerShell as Administrator, or:"
-                    Write-Info "  cd `"$cliDir`""
-                    Write-Info "  npm link"
+                    Write-Info "  npm install -g $tarball"
                     exit 1
                 }
                 Write-Success "Global installation completed"
+
+                # Clean up tarball
+                Remove-Item $tarball -Force -ErrorAction SilentlyContinue
             }
             catch {
                 Write-Warning "Installation may require administrator privileges"

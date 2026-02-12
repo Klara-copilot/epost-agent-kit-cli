@@ -133,19 +133,30 @@ if not exist "%CLI_DIR%\dist\cli.js" (
 )
 echo [+] Build completed
 
-REM Step 11: Install globally
-echo [*] Installing %CLI_NAME% CLI globally...
-call npm link >nul 2>&1
+REM Step 11: Create package tarball
+echo [*] Creating package tarball...
+for /f "delims=" %%i in ('npm pack --silent 2^>nul') do set TARBALL=%%i
 if errorlevel 1 (
-    echo [!] npm link failed (may require administrator privileges)
+    echo [X] Failed to create package tarball
+    goto :error
+)
+echo [+] Tarball created: %TARBALL%
+
+REM Step 12: Install globally from tarball
+echo [*] Installing %CLI_NAME% CLI globally from tarball...
+call npm install -g %TARBALL% >nul 2>&1
+if errorlevel 1 (
+    echo [!] npm install failed (may require administrator privileges)
     echo     Try running CMD as Administrator, or:
-    echo       cd "%CLI_DIR%"
-    echo       npm link
+    echo       npm install -g %TARBALL%
     goto :error
 )
 echo [+] Global installation completed
 
-REM Step 12: Verify installation
+REM Clean up tarball
+del /q %TARBALL% >nul 2>&1
+
+REM Step 13: Verify installation
 echo [*] Verifying installation...
 call %CLI_NAME% --version >nul 2>&1
 if errorlevel 1 (
