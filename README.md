@@ -4,6 +4,33 @@ Command-line interface for managing ePost Agent Kit installations, packages, and
 
 **Version:** 0.1.0 | **Node:** >= 18.0.0 | **License:** Private - Klara Copilot
 
+## Installation
+
+### One-Line Install
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/main/epost-agent-kit-cli/install/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+iwr https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/main/epost-agent-kit-cli/install/install.ps1 -UseBasicParsing | iex
+```
+
+**Windows (Command Prompt):**
+```cmd
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/main/epost-agent-kit-cli/install/install.cmd -o %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
+```
+
+**Prerequisites:**
+- Node.js >= 18.0.0
+- npm (included with Node.js)
+- GitHub CLI (`gh`) - [Install here](https://cli.github.com/)
+- GitHub authentication: `gh auth login`
+
+See [Installation Guide](./install/README.md) for detailed instructions, troubleshooting, and manual installation.
+
 ## Quick Start
 
 ```bash

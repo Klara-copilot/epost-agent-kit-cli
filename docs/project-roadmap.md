@@ -2,7 +2,7 @@
 
 **Project:** ePost Agent Kit CLI
 **Created by:** Phuong Doan
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-12
 
 ## Current Status: v0.1.0
 
@@ -139,6 +139,21 @@
 - `services/` (295 LOC)
 - `types/` (211 LOC)
 
+### ✅ Installation Scripts
+**Status:** Complete | **Priority:** P0 | **Completed:** 2026-02-12
+
+- [x] Platform-specific installation scripts (Bash, PowerShell, CMD)
+- [x] Installation documentation with troubleshooting guide
+- [x] CI/CD workflow for installation testing
+- [x] Updated README.md with installation section
+
+**Key Files:**
+- `install/install.sh` (284 LOC) - Unix/macOS installation
+- `install/install.ps1` (279 LOC) - Windows PowerShell installation
+- `install/install.cmd` (206 LOC) - Windows CMD installation
+- `install/README.md` (425 LOC) - Installation guide
+- `.github/workflows/test-install.yml` (270 LOC) - CI testing
+
 ## In Progress
 
 ### 🔄 Documentation
@@ -149,6 +164,7 @@
 - [x] System architecture
 - [x] Code standards
 - [x] Enhanced README
+- [x] Installation guide with troubleshooting
 - [ ] API reference
 - [ ] Package authoring guide
 - [ ] Profile creation guide

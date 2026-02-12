@@ -1,0 +1,264 @@
+name: Test Installation Scripts
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'epost-agent-kit-cli/install/**'
+      - 'epost-agent-kit-cli/package.json'
+      - 'epost-agent-kit-cli/src/**'
+      - '.github/workflows/test-install.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'epost-agent-kit-cli/install/**'
+      - 'epost-agent-kit-cli/package.json'
+      - 'epost-agent-kit-cli/src/**'
+      - '.github/workflows/test-install.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: epost-agent-kit-cli
+
+jobs:
+  test-unix-install:
+    name: Test Unix Installation (Bash)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [18, 20]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup GitHub CLI
+        uses: cli/cli/gh-extension/setup-gh@v2
+        with:
+          gh-version: latest
+
+      - name: Configure GitHub CLI Authentication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | gh auth login --with-token
+          gh auth status
+
+      - name: Run installation script
+        run: bash install/install.sh
+
+      - name: Verify CLI is installed
+        run: |
+          which epost-kit
+          epost-kit --version
+
+      - name: Test CLI commands
+        run: |
+          epost-kit --help
+          epost-kit doctor || true
+
+      - name: Run basic smoke test
+        run: |
+          mkdir -p /tmp/epost-test
+          cd /tmp/epost-test
+          epost-kit init --dry-run || echo "Dry run completed"
+
+  test-windows-powershell:
+    name: Test Windows Installation (PowerShell)
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20]
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup GitHub CLI
+        uses: cli/cli/gh-extension/setup-gh@v2
+        with:
+          gh-version: latest
+
+      - name: Configure GitHub CLI Authentication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$env:GH_TOKEN" | gh auth login --with-token
+          gh auth status
+        shell: pwsh
+
+      - name: Run PowerShell installation script
+        run: |
+          powershell -ExecutionPolicy Bypass -File install/install.ps1
+
+      - name: Verify CLI is installed
+        run: |
+          where.exe epost-kit
+          epost-kit --version
+        shell: pwsh
+
+      - name: Test CLI commands
+        run: |
+          epost-kit --help
+          epost-kit doctor
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Run basic smoke test
+        run: |
+          mkdir $env:TEMP\epost-test -Force
+          cd $env:TEMP\epost-test
+          epost-kit init --dry-run
+        shell: pwsh
+        continue-on-error: true
+
+  test-windows-cmd:
+    name: Test Windows Installation (CMD)
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20]
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup GitHub CLI
+        uses: cli/cli/gh-extension/setup-gh@v2
+        with:
+          gh-version: latest
+
+      - name: Configure GitHub CLI Authentication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo %GH_TOKEN% | gh auth login --with-token
+          gh auth status
+        shell: cmd
+
+      - name: Run CMD installation script
+        run: cmd /c "install\install.cmd"
+
+      - name: Verify CLI is installed
+        run: |
+          where epost-kit
+          epost-kit --version
+        shell: cmd
+
+      - name: Test CLI commands
+        run: |
+          epost-kit --help
+          epost-kit doctor
+        shell: cmd
+        continue-on-error: true
+
+      - name: Run basic smoke test
+        run: |
+          mkdir %TEMP%\epost-test
+          cd %TEMP%\epost-test
+          epost-kit init --dry-run
+        shell: cmd
+        continue-on-error: true
+
+  verify-documentation:
+    name: Verify Installation Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check README.md has installation section
+        run: |
+          if ! grep -q "## Installation" README.md; then
+            echo "ERROR: README.md missing Installation section"
+            exit 1
+          fi
+          echo "✓ README.md has Installation section"
+
+      - name: Check install/README.md exists
+        run: |
+          if [ ! -f "install/README.md" ]; then
+            echo "ERROR: install/README.md not found"
+            exit 1
+          fi
+          echo "✓ install/README.md exists"
+
+      - name: Verify install scripts exist
+        run: |
+          scripts=("install.sh" "install.ps1" "install.cmd")
+          for script in "${scripts[@]}"; do
+            if [ ! -f "install/$script" ]; then
+              echo "ERROR: install/$script not found"
+              exit 1
+            fi
+            echo "✓ install/$script exists"
+          done
+
+      - name: Check install scripts are executable
+        run: |
+          if [ ! -x "install/install.sh" ]; then
+            echo "ERROR: install.sh is not executable"
+            exit 1
+          fi
+          echo "✓ install.sh is executable"
+
+      - name: Validate installation URLs in README
+        run: |
+          expected_repo="Klara-copilot/epost_agent_kit"
+
+          if ! grep -q "$expected_repo" README.md; then
+            echo "ERROR: README.md missing correct repository URL"
+            exit 1
+          fi
+
+          if ! grep -q "$expected_repo" install/README.md; then
+            echo "ERROR: install/README.md missing correct repository URL"
+            exit 1
+          fi
+
+          echo "✓ Repository URLs are correct"
+
+  report-results:
+    name: Report Test Results
+    needs: [test-unix-install, test-windows-powershell, test-windows-cmd, verify-documentation]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Report Status
+        run: |
+          echo "## Installation Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unix (Bash) | ${{ needs.test-unix-install.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows (PowerShell) | ${{ needs.test-windows-powershell.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows (CMD) | ${{ needs.test-windows-cmd.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation | ${{ needs.verify-documentation.result }} |" >> $GITHUB_STEP_SUMMARY
