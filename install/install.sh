@@ -11,8 +11,7 @@ NC='\033[0m' # No Color
 
 # Constants
 REQUIRED_NODE_VERSION="18.0.0"
-REPO="Klara-copilot/epost_agent_kit"
-SUBDIR="epost-agent-kit-cli"
+REPO="Klara-copilot/epost-agent-kit-cli"
 CLI_NAME="epost-kit"
 
 # Utility functions
@@ -150,14 +149,8 @@ clone_repository() {
 
 build_cli() {
     local repo_dir="$1"
-    local cli_dir="${repo_dir}/${SUBDIR}"
 
-    if [[ ! -d "$cli_dir" ]]; then
-        print_error "CLI directory not found: ${cli_dir}"
-        exit 1
-    fi
-
-    cd "$cli_dir"
+    cd "$repo_dir"
 
     print_info "Installing dependencies..."
     if ! npm install --silent; then

@@ -9,8 +9,7 @@ REM ============================================================
 
 REM Constants
 set REQUIRED_NODE_VERSION=18
-set REPO=Klara-copilot/epost_agent_kit
-set SUBDIR=epost-agent-kit-cli
+set REPO=Klara-copilot/epost-agent-kit-cli
 set CLI_NAME=epost-kit
 
 REM Display banner
@@ -104,11 +103,7 @@ if errorlevel 1 (
 echo [+] Repository cloned
 
 REM Step 8: Navigate to CLI directory
-set CLI_DIR=%TEMP_DIR%\epost_agent_kit\%SUBDIR%
-if not exist "%CLI_DIR%" (
-    echo [X] Directory not found: %SUBDIR%
-    goto :error
-)
+set CLI_DIR=%TEMP_DIR%\epost-agent-kit-cli
 
 cd /d "%CLI_DIR%"
 
@@ -193,7 +188,7 @@ REM Error handler
 echo.
 echo [X] Installation failed
 echo     For manual installation, see:
-echo     https://github.com/%REPO%/tree/main/%SUBDIR%
+echo     https://github.com/%REPO%
 echo.
 
 REM Cleanup on error

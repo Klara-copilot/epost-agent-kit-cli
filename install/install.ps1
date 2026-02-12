@@ -3,7 +3,7 @@
     ePost-Kit CLI Installation Script for Windows PowerShell
 
 .DESCRIPTION
-    Installs ePost-Kit CLI from private GitHub repository (Klara-copilot/epost_agent_kit)
+    Installs ePost-Kit CLI from private GitHub repository (Klara-copilot/epost-agent-kit-cli)
     Requires: Node.js >= 18.0.0, npm, gh CLI (authenticated)
 
 .NOTES
@@ -131,12 +131,12 @@ function Install-EPostKit {
     # Step 5: Verify org access
     Write-Info "Verifying access to Klara-copilot organization..."
     try {
-        $repoCheck = gh repo view Klara-copilot/epost_agent_kit --json name 2>&1
+        $repoCheck = gh repo view Klara-copilot/epost-agent-kit-cli --json name 2>&1
         if ($LASTEXITCODE -ne 0) { throw }
         Write-Success "Repository access confirmed"
     }
     catch {
-        Write-Error "Cannot access Klara-copilot/epost_agent_kit"
+        Write-Error "Cannot access Klara-copilot/epost-agent-kit-cli"
         Write-Info "Contact your administrator for organization access"
         exit 1
     }
@@ -154,7 +154,7 @@ function Install-EPostKit {
         Push-Location $tempDir
 
         try {
-            gh repo clone Klara-copilot/epost_agent_kit 2>&1 | Out-Null
+            gh repo clone Klara-copilot/epost-agent-kit-cli 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 Write-Error "Failed to clone repository"
                 exit 1
@@ -162,11 +162,7 @@ function Install-EPostKit {
             Write-Success "Repository cloned"
 
             # Step 8: Navigate to CLI directory
-            $cliDir = Join-Path $tempDir "epost_agent_kit\epost-agent-kit-cli"
-            if (-not (Test-Path $cliDir)) {
-                Write-Error "Directory not found: epost-agent-kit-cli"
-                exit 1
-            }
+            $cliDir = Join-Path $tempDir "epost-agent-kit-cli"
 
             Set-Location $cliDir
 
@@ -274,6 +270,6 @@ try {
 catch {
     Write-Host ""
     Write-Error "Installation failed: $_"
-    Write-Info "For manual installation, see: https://github.com/Klara-copilot/epost_agent_kit/tree/main/epost-agent-kit-cli"
+    Write-Info "For manual installation, see: https://github.com/Klara-copilot/epost-agent-kit-cli/tree/main/epost-agent-kit-cli"
     exit 1
 }
