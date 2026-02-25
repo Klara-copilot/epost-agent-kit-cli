@@ -2,7 +2,7 @@
 
 Command-line interface for managing ePost Agent Kit installations, packages, and configurations across Claude, Cursor, and GitHub Copilot platforms.
 
-**Version:** 0.1.0 | **Node:** >= 18.0.0 | **License:** Private - Klara Copilot
+**Version:** 0.1.0 | **Node:** >= 18.0.0 | **License:** MIT
 
 ## Installation
 
@@ -66,16 +66,16 @@ Clean 4-layer architecture with strict separation of concerns:
 src/
 ├── cli/         # CLI entry point, command registration
 ├── commands/    # Thin orchestrators (11 commands)
-├── domains/     # Business logic (9 domains)
+├── domains/     # Business logic (10 domains)
 ├── services/    # Cross-cutting services
 ├── shared/      # Infrastructure utilities
 └── types/       # Type definitions
 ```
 
 **Key Stats:**
-- Total: ~7,872 LOC
-- Commands: 2,518 LOC (11 commands)
-- Domains: 3,030 LOC (9 domains)
+- Total: ~7,130 LOC
+- Commands: 2,358 LOC (11 commands)
+- Domains: 3,619 LOC (10 domains)
 - Services/Shared: 772 LOC
 - Tests: 1,341 LOC (103 tests, 100% passing)
 
@@ -363,9 +363,12 @@ See `MANUAL-TESTING-GUIDE.md` for comprehensive manual testing procedures.
 
 - [Project Overview & PDR](./docs/project-overview-pdr.md) - Vision, goals, requirements
 - [Codebase Summary](./docs/codebase-summary.md) - High-level code organization
+- [Codebase Integrations](./docs/codebase-integrations.md) - External integrations, config, build/deploy
 - [System Architecture](./docs/system-architecture.md) - Technical design details
 - [Code Standards](./docs/code-standards.md) - Development conventions
+- [Code Standards - Patterns](./docs/code-standards-patterns.md) - Common patterns, anti-patterns, IDE/Git config
 - [Project Roadmap](./docs/project-roadmap.md) - Current status and future plans
+- [Project Roadmap - Appendix](./docs/project-roadmap-appendix.md) - Technical debt, known issues, metrics
 
 ## Key Technologies
 
@@ -506,7 +509,7 @@ See [Project Roadmap](./docs/project-roadmap.md) for detailed plans.
 
 ## License
 
-Private - Klara Copilot
+MIT
 
 ## Support
 
@@ -518,4 +521,4 @@ For internal support:
 
 ---
 
-**Created by:** Phuong Doan | **Last Updated:** 2026-02-11
+**Created by:** Phuong Doan | **Last Updated:** 2026-02-25

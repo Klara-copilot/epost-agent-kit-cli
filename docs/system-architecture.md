@@ -2,7 +2,7 @@
 
 **Project:** ePost Agent Kit CLI
 **Created by:** Phuong Doan
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-25
 
 ## Overview
 
@@ -35,39 +35,77 @@ ePost Agent Kit CLI uses a clean 4-layer architecture with strict separation of 
 ```
 
 **Key Stats:**
-- Total: ~8,100 LOC (after GitHub domain addition)
-- Commands: 2,518 LOC (11 files)
-- Domains: 3,200+ LOC (10 domains)
+- Total: ~7,130 LOC
+- Commands: 2,358 LOC (11 files)
+- Domains: 3,619 LOC (10 domains)
 - Services/Shared: 772 LOC
 - Tests: 1,341 LOC (103 tests, 100% passing)
 
-## Documentation Index
+## Core Algorithms
 
-### 1. [Layers & Components](./architecture/layers-and-components.md)
-Detailed breakdown of each architectural layer:
-- CLI Layer (command registration)
-- Commands Layer (11 commands)
-- Domains Layer (10 business domains including GitHub integration)
-- Services/Shared Layer (utilities)
-- Types Layer (definitions)
+### Package Resolution Pipeline
+**Owner:** `domains/packages/package-resolver.ts`
 
-### 2. [Core Algorithms](./architecture/core-algorithms.md)
-Deep dive into key algorithms:
-- Package Resolution Pipeline
-- Smart Merge System (file ownership classification)
-- Template Engine (custom regex-based renderer)
-- YAML Parser (custom implementation)
-- Topological Sort (Kahn's algorithm)
-- File Ownership Tracking
+Workflow:
+```
+1. Load manifests (packages/*/package.yaml)
+2. Determine packages (profile or explicit list)
+3. Auto-add missing dependencies
+4. Validate all dependencies satisfied
+5. Topological sort (Kahn's algorithm)
+6. Collect recommendations from installed packages
+7. Return ResolvedPackages (packages, optional, recommended)
+```
 
-### 3. [Data Flow & Integration](./architecture/data-flow-integration.md)
-System interactions and workflows:
-- Installation Flow (init command)
-- Dev Watcher Flow
-- Package Add/Remove Flows
-- Component Dependency Graph
-- External Integrations (GitHub, npm)
-- Configuration Management
+### Smart Merge System
+**Owner:** `domains/installation/smart-merge.ts`, `services/file-operations/ownership.ts`
+
+Classification Algorithm:
+```
+For each file in kit:
+  If file exists in project:
+    Load metadata from .epost-metadata.json
+    Compute current checksum
+    Compare with install checksum
+
+    If checksums match:
+      Classification: epost-owned (safe to overwrite)
+    Else if file in metadata:
+      Classification: epost-modified (user changed)
+    Else:
+      Classification: user-created (skip)
+  Else:
+    Classification: create (new file)
+```
+
+Actions:
+- `overwrite` → epost-owned files
+- `skip` → user-created files
+- `conflict` → epost-modified files (require manual resolution)
+- `create` → new files
+
+### Template Engine
+**Owner:** `domains/installation/claude-md-generator.ts`
+
+Custom regex-based engine supporting:
+- Variables: `{{variable}}`, `{{nested.var}}`
+- Conditionals: `{{#if var}}...{{else}}...{{/if}}`
+- Loops: `{{#each items}}...{{/each}}`
+- Unless blocks: `{{#unless var}}...{{/unless}}`
+- Array helpers: `{{@index}}`, `{{@last}}`, `{{@first}}`
+- Raw output: `{{{variable}}}`
+
+### YAML Parser
+**Owner:** `domains/packages/package-resolver.ts`
+
+Custom line-by-line parser (no external dependencies):
+- Supports: key-value, nested objects, arrays, inline arrays, comments
+- Type inference: strings, booleans, integers, floats
+- Indentation-based structure
+- Limitation: No flow style `{...}`, anchors `&`, or aliases `*`
+
+### Topological Sort
+Kahn's algorithm for dependency resolution - ensures packages install in correct order with cycle detection.
 
 ## Quick Reference
 
@@ -81,8 +119,8 @@ System interactions and workflows:
 
 ### External Integrations
 
-- **GitHub API:** Package distribution, release downloads, version listings
-- **GitHub CLI (`gh`):** Authentication and token management for API access
+- **GitHub API:** Package distribution, release downloads, version listings (REQUIRED)
+- **GitHub CLI (`gh`):** Authentication and token management for API access (REQUIRED per FR-5)
 - **npm Registry:** CLI self-update checks
 - **Package Managers:** Detection and execution (npm/pnpm/yarn/bun)
 
@@ -131,6 +169,9 @@ System interactions and workflows:
 ## See Also
 
 - [Code Standards](./code-standards.md) - Development conventions
+- [Code Standards - Patterns](./code-standards-patterns.md) - Common patterns, anti-patterns, IDE/Git config
 - [Codebase Summary](./codebase-summary.md) - High-level organization
+- [Codebase Integrations](./codebase-integrations.md) - External integrations, config, build/deploy
 - [Project Overview & PDR](./project-overview-pdr.md) - Product requirements
-- [Project Roadmap](./project-roadmap.md) - Future plans
+- [Project Roadmap](./project-roadmap.md) - Current status and planned features
+- [Project Roadmap - Appendix](./project-roadmap-appendix.md) - Technical debt, known issues, metrics

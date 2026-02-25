@@ -2,7 +2,7 @@
 
 **Version:** 0.1.0
 **Created by:** Phuong Doan
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-25
 
 ## Executive Summary
 
@@ -278,10 +278,11 @@ Package distribution via GitHub releases with authentication support.
 - Match by dependencies (e.g., `react`, `django`)
 - Confidence scoring: high/medium/low
 
-**FR-5: GitHub-Only Distribution**
-- Packages downloaded exclusively from GitHub releases
-- GitHub authentication required via `gh` CLI
-- Release caching with force-download override
+**FR-5: GitHub-Only Distribution (CRITICAL)**
+- Packages downloaded **exclusively** from GitHub releases
+- **GitHub authentication REQUIRED** via `gh` CLI (`gh auth login`)
+- No fallback to local kit sources
+- Release caching with `--force-download` override
 - Graceful degradation on network errors
 - Clear error messages with recovery instructions
 
@@ -378,6 +379,7 @@ Package distribution via GitHub releases with authentication support.
 - `ora` - Progress spinners
 - `cosmiconfig` - Configuration file discovery
 - `zod` - Schema validation
+- `tar` - Archive extraction for releases
 
 ### External Integrations
 - GitHub Releases API - Kit template downloads
@@ -386,6 +388,7 @@ Package distribution via GitHub releases with authentication support.
 
 ### Platform Requirements
 - Node.js >= 18.0.0
+- GitHub CLI (`gh`) - **REQUIRED** for package downloads
 - Git (optional, for `epost-kit new`)
 - Network access for downloads (optional with caching)
 
@@ -425,17 +428,12 @@ Package distribution via GitHub releases with authentication support.
 - **Mitigation:** Platform-specific adapters, version detection
 - **Contingency:** Community contributions for updates
 
-## Open Questions
-
-1. **Profile Discovery**: Should profiles be centralized or distributed per team?
-2. **Package Registry**: Need dedicated registry or GitHub-based sufficient?
-3. **Versioning**: Full semver or simple version tags?
-4. **Telemetry**: Opt-in usage tracking for improving UX?
-5. **Migration Path**: Support automatic migration from ClaudeKit?
-6. **Workspace Feature**: How do multi-repo setups share profiles/packages?
-
 ## See Also
 
 - [System Architecture](./system-architecture.md) - Technical design details
 - [Code Standards](./code-standards.md) - Development conventions
+- [Code Standards - Patterns](./code-standards-patterns.md) - Common patterns, anti-patterns, IDE/Git config
 - [Codebase Summary](./codebase-summary.md) - High-level code organization
+- [Codebase Integrations](./codebase-integrations.md) - External integrations, config, build/deploy
+- [Project Roadmap](./project-roadmap.md) - Future plans and open questions
+- [Project Roadmap - Appendix](./project-roadmap-appendix.md) - Technical debt, known issues, metrics
