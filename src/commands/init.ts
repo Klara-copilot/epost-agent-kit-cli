@@ -285,7 +285,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   if (isUpdate) {
     logger.step(5, 7, "Creating backup");
     const backupSpinner = ora("Creating backup...").start();
-    await createBackup(projectDir, "pre-update");
+    await createBackup(projectDir, "pre-update", { subdirectory: installDirName });
     backupSpinner.succeed("Backup created");
   }
 

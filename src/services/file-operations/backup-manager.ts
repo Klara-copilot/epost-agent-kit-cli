@@ -2,15 +2,37 @@
  * Backup management for safe file operations
  */
 
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { mkdir, readdir, stat, rm } from 'node:fs/promises';
 import { safeCopyDir, dirExists } from '@/shared/file-system.js';
 import { logger } from '@/shared/logger.js';
 
 const BACKUP_DIR = '.epost-kit-backup';
 
+// Directories to always exclude from backup
+const EXCLUDE_DIRS = [
+  'node_modules',
+  '.git',
+  '.next',
+  '.nuxt',
+  'dist',
+  'build',
+  '.cache',
+  'coverage',
+  '.epost-kit-backup',
+];
+
+export interface BackupOptions {
+  /** Only backup this specific subdirectory (e.g., ".claude") */
+  subdirectory?: string;
+}
+
 /** Create backup of directory with timestamp label */
-export async function createBackup(sourceDir: string, label: string): Promise<string> {
+export async function createBackup(
+  sourceDir: string,
+  label: string,
+  options?: BackupOptions,
+): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupName = `${label}-${timestamp}`;
   const backupPath = join(sourceDir, BACKUP_DIR, backupName);
@@ -18,8 +40,27 @@ export async function createBackup(sourceDir: string, label: string): Promise<st
   logger.debug(`Creating backup: ${backupPath}`);
 
   await mkdir(join(sourceDir, BACKUP_DIR), { recursive: true });
+
+  // If subdirectory specified, only backup that directory
+  if (options?.subdirectory) {
+    const subdirPath = join(sourceDir, options.subdirectory);
+    if (await dirExists(subdirPath)) {
+      await safeCopyDir(subdirPath, join(backupPath, options.subdirectory), {
+        filter: (path: string) => !EXCLUDE_DIRS.some((d) => path.includes(`/${d}`) || path.includes(`\\${d}`)),
+      });
+      logger.debug(`Backup created: ${backupPath} (subdirectory: ${options.subdirectory})`);
+    } else {
+      logger.debug(`Subdirectory not found, skipping backup: ${options.subdirectory}`);
+    }
+    return backupPath;
+  }
+
+  // Full backup with exclusions
   await safeCopyDir(sourceDir, backupPath, {
-    filter: (path: string) => !path.includes(BACKUP_DIR),
+    filter: (path: string) => {
+      const name = basename(path);
+      return !EXCLUDE_DIRS.includes(name);
+    },
   });
 
   logger.debug(`Backup created: ${backupPath}`);

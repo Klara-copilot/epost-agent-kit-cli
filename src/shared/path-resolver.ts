@@ -131,12 +131,19 @@ export class KitPathResolver {
 
   /**
    * Get templates/ directory or null (optional)
+   * Returns null if kit repository not found (graceful degradation)
    */
   async getTemplatesDir(): Promise<string | null> {
-    const paths = await this.resolve();
-    if (!paths.templates) return null;
-    if (!(await dirExists(paths.templates))) return null;
-    return paths.templates;
+    try {
+      const paths = await this.resolve();
+      if (!paths.templates) return null;
+      if (!(await dirExists(paths.templates))) return null;
+      return paths.templates;
+    } catch {
+      // Kit repository not found - return null for graceful degradation
+      // CLAUDE.md generation will use default template
+      return null;
+    }
   }
 
   /**
