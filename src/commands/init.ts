@@ -60,12 +60,52 @@ import {
 /**
  * GitHub-only init flow
  * Always downloads packages from Klara-copilot/epost_agent_kit
+ *
+ * With --source flag: uses local source repo for package resolution (dev mode)
  */
 
 // Centralized kit path resolver
 const kitPaths = new KitPathResolver(
   dirname(fileURLToPath(import.meta.url)),
 );
+
+/**
+ * Get packages directory based on mode
+ * - source mode: use KitPathResolver (local source repo)
+ * - default: use GitHub cache (~/.epost-kit/packages)
+ */
+async function getPackagesDir(source?: boolean): Promise<string> {
+  if (source) {
+    const packagesDir = await kitPaths.getPackagesDir();
+    if (!packagesDir) {
+      throw new Error(
+        "Source mode requires local kit repo. Ensure epost-agent-kit is available."
+      );
+    }
+    return packagesDir;
+  }
+  // Default: GitHub cache
+  const { homedir } = await import("node:os");
+  return join(homedir(), ".epost-kit", "packages");
+}
+
+/**
+ * Get profiles path based on mode
+ */
+async function getProfilesPath(source?: boolean): Promise<string> {
+  if (source) {
+    const profilesPath = await kitPaths.getProfilesPath();
+    if (!profilesPath) {
+      throw new Error(
+        "Source mode requires local kit repo. Ensure epost-agent-kit is available."
+      );
+    }
+    return profilesPath;
+  }
+  // Default: GitHub cache
+  const { homedir } = await import("node:os");
+  return join(homedir(), ".epost-kit", "profiles", "profiles.yaml");
+}
 
 // ─── Package-Based Installation ───
 
@@ -85,12 +125,16 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   // ── Step 1/7: Find packages ──
   logger.step(1, 7, "Locating packages");
 
-  // Use global packages directory from GitHub download
-  const { homedir } = await import('node:os');
-  const packagesDir = join(homedir(), '.epost-kit', 'packages');
-  const profilesPath = join(homedir(), '.epost-kit', 'profiles', 'profiles.yaml');
+  // Use source mode or GitHub cache based on opts.source
+  const packagesDir = await getPackagesDir(opts.source);
+  const profilesPath = await getProfilesPath(opts.source);
 
   if (!(await dirExists(packagesDir))) {
+    if (opts.source) {
+      throw new Error(
+        "Source packages not found. Ensure epost-agent-kit is available locally."
+      );
+    }
     throw new Error(
       'Packages not found. Run "epost-kit init" first to download packages from GitHub.'
     );
@@ -214,8 +258,8 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
 
   // Select IDE target
   let target: "claude" | "cursor" | "github-copilot" =
-    metadata?.target || "claude";
-  if (!metadata && !opts.yes) {
+    opts.target || metadata?.target || "claude";
+  if (!opts.target && !metadata && !opts.yes) {
     target = await select({
       message: "Select IDE target:",
       choices: [
@@ -705,6 +749,11 @@ function extractSkillFrontmatter(
 // ─── Main Entry ───
 
 export async function runInit(opts: InitOptions): Promise<void> {
+  // Source mode: skip GitHub download, use local source repo
+  if (opts.source) {
+    return runPackageInit(opts);
+  }
+
   // Step 1: Check GitHub CLI installation
   const ghInstalled = await checkGhCliInstalled();
   if (!ghInstalled) {

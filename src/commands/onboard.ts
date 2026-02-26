@@ -205,16 +205,30 @@ export async function runOnboard(opts: OnboardOptions): Promise<void> {
 
   process.chdir(targetDir);
 
+  // Optimus team defaults to GitHub Copilot
+  const target = teamChoice === "optimus" ? "github-copilot" : undefined;
+
   await runInit({
     ...opts,
     packages: selected.join(","),
+    target,
+    source: true, // Use source repo for package resolution (discovered from source)
   });
 
   // Post-install success message
-  console.log(
-    box(
-      `Setup complete!\n\nRun ${pc.bold("claude")} to activate your AI assistant.\nType ${pc.bold("/")} to discover all available commands.`,
-      { title: "Ready" },
-    ),
-  );
+  if (target === "github-copilot") {
+    console.log(
+      box(
+        `Setup complete!\n\nOpen VS Code to activate GitHub Copilot.\nType ${pc.bold("/")} in chat to discover available prompts.`,
+        { title: "Ready" },
+      ),
+    );
+  } else {
+    console.log(
+      box(
+        `Setup complete!\n\nRun ${pc.bold("claude")} to activate your AI assistant.\nType ${pc.bold("/")} to discover all available commands.`,
+        { title: "Ready" },
+      ),
+    );
+  }
 }

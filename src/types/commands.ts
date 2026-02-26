@@ -21,6 +21,8 @@ export interface InitOptions extends GlobalOptions {
   dryRun?: boolean;
   dir?: string;
   forceDownload?: boolean; // Skip cache, always download fresh release
+  target?: "claude" | "cursor" | "github-copilot"; // IDE target override
+  source?: boolean; // Use source repo for package resolution (local dev mode)
 }
 
 export interface DoctorOptions extends GlobalOptions {
