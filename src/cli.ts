@@ -42,11 +42,19 @@ cli
   .option("--optional <list>", "Comma-separated optional packages to include")
   .option("--exclude <list>", "Comma-separated packages to exclude")
   .option("--fresh", "Fresh install (ignore existing files)")
+  .option("--force", "Force fresh download and reinstall (combines --force-download and --fresh)")
+  .option("--force-download", "Skip cache and re-download release from GitHub")
   .option("--dry-run", "Preview changes without applying")
   .option("--dir <path>", "Target project directory")
   .action(async (opts: any) => {
     const { runInit } = await import("./commands/init.js");
-    await runInit({ ...cli.globalCommand.options, ...opts });
+    const force = opts.force ?? false;
+    await runInit({
+      ...cli.globalCommand.options,
+      ...opts,
+      forceDownload: force || opts.forceDownload,
+      fresh: force || opts.fresh,
+    });
   });
 
 // Command: doctor - Verify installation
