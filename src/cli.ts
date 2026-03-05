@@ -44,7 +44,7 @@ cli
   .option("--fresh", "Fresh install (ignore existing files)")
   .option("--force", "Force fresh download and reinstall (combines --force-download and --fresh)")
   .option("--force-download", "Skip cache and re-download release from GitHub")
-  .option("--source", "Use local source repo for packages (dev mode, skips GitHub download)")
+  .option("--source [path]", "Use local source repo for packages (dev mode, skips GitHub download)")
   .option("--dry-run", "Preview changes without applying")
   .option("--dir <path>", "Target project directory")
   .action(async (opts: any) => {
@@ -86,7 +86,7 @@ cli
 cli
   .command("update", "Update installed kit packages (uses existing profile/target)")
   .option("--dir <path>", "Target project directory")
-  .option("--source", "Use local source repo for packages (dev mode)")
+  .option("--source [path]", "Use local source repo for packages (dev mode)")
   .option("--force-download", "Skip cache and re-download release from GitHub")
   .action(async (opts: any) => {
     const { runUpdate } = await import("./commands/update.js");
@@ -170,13 +170,86 @@ cli
     await runWorkspaceInit({ ...cli.globalCommand.options, ...opts });
   });
 
-// Command: dev - Watch packages and live-sync
+// Command: dev init - Initialize using local source repo, then start background watcher
+// NOTE: must be registered BEFORE "dev" so CAC matches "dev init" before "dev"
 cli
-  .command("dev", "Watch packages/ and live-sync to target .claude/ directory")
-  .option("--target <dir>", "Target project directory")
+  .command("dev init", "Initialize using local ../epost_agent_kit source, then start watcher")
+  .option("--profile <name>", "Developer profile")
+  .option("--packages <list>", "Comma-separated package list")
+  .option("--optional <list>", "Comma-separated optional packages to include")
+  .option("--exclude <list>", "Comma-separated packages to exclude")
+  .option("--fresh", "Fresh install (ignore existing files)")
+  .option("--dry-run", "Preview changes without applying")
+  .option("--dir <path>", "Target project directory")
+  .option("--no-watch", "Skip starting the background watcher after init")
+  .action(async (opts: any) => {
+    const { runInit } = await import("./commands/init.js");
+    await runInit({
+      ...cli.globalCommand.options,
+      ...opts,
+      source: "../epost_agent_kit",
+    });
+
+    // Start watcher in background unless --no-watch or dry-run
+    if (!opts.noWatch && !opts.dryRun) {
+      const { spawnDevWatcher } = await import("./commands/dev-spawn.js");
+      await spawnDevWatcher({ dir: opts.dir });
+    }
+  });
+
+// Command: dev update - Update using local source repo (dev mode shorthand)
+cli
+  .command("dev update", "Update packages using local ../epost_agent_kit source (dev mode)")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    const { runUpdate } = await import("./commands/update.js");
+    await runUpdate({
+      ...cli.globalCommand.options,
+      ...opts,
+      source: "../epost_agent_kit",
+    });
+  });
+
+// Command: dev stop - Kill background watcher
+cli
+  .command("dev stop", "Stop the background dev watcher")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    const { resolve, join } = await import("node:path");
+    const { readFile, unlink } = await import("node:fs/promises");
+    const targetDir = opts.dir ? resolve(opts.dir) : resolve(process.cwd());
+    const pidPath = join(targetDir, ".epost-data", "dev-watcher.pid");
+    try {
+      const pid = parseInt(await readFile(pidPath, "utf-8"), 10);
+      process.kill(pid, "SIGTERM");
+      await unlink(pidPath);
+      console.log(`Watcher stopped (PID ${pid})`);
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        console.log("No watcher running (no PID file found)");
+      } else if (err.code === "ESRCH") {
+        await unlink(pidPath).catch(() => {});
+        console.log("Watcher was already stopped");
+      } else {
+        console.error(`Failed to stop watcher: ${err.message}`);
+      }
+    }
+  });
+
+// Command: dev - Watch local kit source and auto-rebuild target project
+cli
+  .command("dev", "Watch local kit source and auto-regenerate .claude/ on changes")
+  .option("--target <dir>", "Target project directory to sync into")
+  .option("--source <path>", "Local kit source path (default: ../epost_agent_kit)")
   .option("--profile <name>", "Only watch packages for this profile")
   .option("--force", "Overwrite user-modified files")
+  .option("--detach", "Run watcher as a background process (logs to .epost-data/dev-watcher.log)")
   .action(async (opts: any) => {
+    if (opts.detach) {
+      const { spawnDevWatcher } = await import("./commands/dev-spawn.js");
+      await spawnDevWatcher({ dir: opts.target, source: opts.source });
+      return;
+    }
     const { runDev } = await import("./commands/dev.js");
     await runDev({ ...cli.globalCommand.options, ...opts });
   });

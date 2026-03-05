@@ -82,8 +82,12 @@ const kitPaths = new KitPathResolver(
  * - source mode: use KitPathResolver (local source repo)
  * - default: use GitHub cache (~/.epost-kit/packages)
  */
-async function getPackagesDir(source?: boolean): Promise<string> {
+async function getPackagesDir(source?: string | boolean): Promise<string> {
   if (source) {
+    if (typeof source === "string") {
+      process.env.EPOST_KIT_ROOT = resolve(source);
+      kitPaths.clearCache();
+    }
     const packagesDir = await kitPaths.getPackagesDir();
     if (!packagesDir) {
       throw new Error(
@@ -100,7 +104,7 @@ async function getPackagesDir(source?: boolean): Promise<string> {
 /**
  * Get profiles path based on mode
  */
-async function getProfilesPath(source?: boolean): Promise<string> {
+async function getProfilesPath(source?: string | boolean): Promise<string> {
   if (source) {
     const profilesPath = await kitPaths.getProfilesPath();
     if (!profilesPath) {
@@ -293,8 +297,8 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     );
   }
 
-  if (!opts.target && !metadata && !opts.yes) {
-    logger.step(3, 7, "Selecting editor");
+  if (!opts.target && !opts.yes) {
+    logger.step(5, 7, "Selecting editor");
     target = await select({
       message: "Which editor/IDE are you using?",
       choices: [
@@ -562,9 +566,9 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
       modified: false,
       package: "core",
     };
-    totalSkills = skillIndex.count;
+    totalSkills = skillIndex.total;
     skillIndexSpinner.succeed(
-      `Skill index generated: ${skillIndex.count} skills`,
+      `Skill index generated: ${skillIndex.total} skills`,
     );
   } else {
     skillIndexSpinner.warn("No skills directory found");
@@ -656,6 +660,8 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   const newMetadata = generateMetadata(VERSION, target, kitVersion, allFiles, {
     profile: profileName,
     installedPackages: resolved.packages,
+    // Persist source path so `epost-kit update` can reuse it without --source flag
+    source: typeof opts.source === "string" ? opts.source : undefined,
   });
   await writeMetadata(projectDir, newMetadata);
   metaSpinner.succeed("Metadata updated");
@@ -816,6 +822,7 @@ async function generateSkillIndex(skillsDir: string): Promise<{
   generated: string;
   version: string;
   count: number;
+  total: number;
   skills: SkillIndexEntry[];
 }> {
   const skillFiles = await findSkillFiles(skillsDir);
@@ -865,6 +872,7 @@ async function generateSkillIndex(skillsDir: string): Promise<{
     generated: new Date().toISOString(),
     version: "1.0.0",
     count: invokableCount,
+    total: allSkills.length,
     skills,
   };
 }
