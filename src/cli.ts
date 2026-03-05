@@ -161,10 +161,123 @@ cli
     await runDev({ ...cli.globalCommand.options, ...opts });
   });
 
+// Command: lint - Validate references
+cli
+  .command("lint", "Validate references across installed agent/skill/command files")
+  .option("--json", "Output results as JSON")
+  .option("--fix", "Auto-fix stale references using rename map")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    if (opts.fix) {
+      const { runFixRefs } = await import("./commands/fix-refs.js");
+      await runFixRefs({ ...cli.globalCommand.options, apply: true, dir: opts.dir });
+    } else {
+      const { runLint } = await import("./commands/lint.js");
+      await runLint({ ...cli.globalCommand.options, ...opts });
+    }
+  });
+
+// Command: fix-refs - Auto-fix stale references
+cli
+  .command("fix-refs", "Auto-fix stale references using rename maps from package.yaml")
+  .option("--apply", "Write changes to disk (default: dry-run)")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    const { runFixRefs } = await import("./commands/fix-refs.js");
+    await runFixRefs({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: verify - Pre-release audit pipeline
+cli
+  .command("verify", "Full pre-release audit: integrity + lint + health checks + dependency graph")
+  .option("--strict", "Treat warnings as errors (CI gate)")
+  .option("--json", "Output machine-readable JSON report")
+  .option("--fix", "Re-sync drifted files via epost-kit init")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    const { runVerify } = await import("./commands/verify.js");
+    await runVerify({ ...cli.globalCommand.options, ...opts });
+  });
+
+// ─── Go-style command suggestions ───
+
+/** Levenshtein edit distance (Damerau variant, max 8) */
+function editDistance(a: string, b: string): number {
+  const maxDist = 8;
+  if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
+  const d: number[][] = [];
+  for (let i = 0; i <= a.length; i++) d[i] = [i];
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let j = 1; j <= b.length; j++) {
+    for (let i = 1; i <= a.length; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return d[a.length][b.length];
+}
+
+/**
+ * Find the closest command name(s) among candidates.
+ * Threshold: similarity >= 0.5
+ */
+function findSuggestions(word: string, candidates: string[]): string[] {
+  const w = word.toLowerCase();
+  let best: string[] = [];
+  let bestDist = Infinity;
+
+  for (const candidate of candidates) {
+    const c = candidate.toLowerCase();
+    const prefixMatch = c.startsWith(w) || w.startsWith(c);
+    const dist = prefixMatch ? 0 : editDistance(w, c);
+    const maxLen = Math.max(w.length, c.length);
+    const similarity = (maxLen - dist) / maxLen;
+
+    if (similarity < 0.5 && !prefixMatch) continue;
+
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = [candidate];
+    } else if (dist === bestDist) {
+      best.push(candidate);
+    }
+  }
+
+  return best;
+}
+
 // Error handling
 process.on("unhandledRejection", (error) => {
   console.error("Error:", error instanceof Error ? error.message : error);
   process.exit(1);
 });
 
-cli.parse();
+try {
+  cli.parse();
+} catch (err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('Unknown command')) {
+    const match = msg.match(/Unknown command `?([^`\s]+)`?/);
+    const unknown = match?.[1];
+    if (unknown) {
+      const allCommands = (cli.commands as Array<{ name: string }>)
+        .map((c) => c.name)
+        .filter(Boolean);
+      const suggestions = findSuggestions(unknown, allCommands);
+      process.stderr.write(`error: unknown command '${unknown}' for 'epost-kit'\n`);
+      if (suggestions.length > 0) {
+        process.stderr.write(`\nDid you mean ${suggestions.length === 1 ? "this" : "one of these"}?\n`);
+        for (const s of suggestions) {
+          process.stderr.write(`        ${s}\n`);
+        }
+      }
+      process.stderr.write(`\nRun 'epost-kit --help' for a list of all commands.\n`);
+      process.exit(1);
+    }
+  }
+  console.error("Error:", msg);
+  process.exit(1);
+}

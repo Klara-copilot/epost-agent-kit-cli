@@ -25,6 +25,11 @@ export interface PackageManifest {
   files: Record<string, string>;
   settings_strategy: "base" | "merge" | "skip";
   claude_snippet?: string;
+  renames?: {
+    skills?: Record<string, string>;
+    agents?: Record<string, string>;
+    commands?: Record<string, string>;
+  };
 }
 
 export interface ProfileDefinition {
