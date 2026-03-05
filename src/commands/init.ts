@@ -541,11 +541,21 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     }
   }
 
+  // Extract kit version from resolved packages (all unified to same version)
+  let kitVersion = "2.0.0"; // fallback
+  for (const pkgName of resolved.packages) {
+    const manifest = manifests.get(pkgName);
+    if (manifest?.version) {
+      kitVersion = manifest.version;
+      break;
+    }
+  }
+
   const claudeContext: ClaudeMdContext = {
     profile: profileName,
     packages: resolved.packages,
     target,
-    kitVersion: "1.0.0",
+    kitVersion,
     cliVersion: "0.1.0",
     installedAt: new Date().toISOString().split("T")[0],
     projectName,
@@ -562,7 +572,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   // ── Step 7/7: Finalize ──
   logger.step(7, 7, "Finalizing");
   const metaSpinner = ora("Updating metadata...").start();
-  const newMetadata = generateMetadata("0.1.0", target, "1.0.0", allFiles, {
+  const newMetadata = generateMetadata("0.1.0", target, kitVersion, allFiles, {
     profile: profileName,
     installedPackages: resolved.packages,
   });
