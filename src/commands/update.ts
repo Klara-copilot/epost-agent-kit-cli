@@ -1,92 +1,60 @@
 /**
  * Command: epost-kit update
- * Self-update CLI to latest version from npm registry
+ * Re-installs kit packages using existing installation metadata.
+ * No setup prompts — reads profile/target/packages from .epost-metadata.json.
  */
 
-import { confirm } from '@inquirer/prompts';
-import ora from 'ora';
-import pc from 'picocolors';
-import { logger } from '@/shared/logger.js';
-import {
-  checkForUpdate,
-  detectPackageManager,
-  getUpdateCommand,
-  executeUpdate,
-  verifyUpdate,
-  getChangelogPreview,
-} from '@/domains/versioning/self-update.js';
-import type { UpdateOptions } from '@/types/commands.js';
+import { resolve } from "node:path";
+import ora from "ora";
+import pc from "picocolors";
+import { logger } from "@/shared/logger.js";
+import { dirExists } from "@/shared/file-system.js";
+import { readMetadata } from "@/services/file-operations/ownership.js";
+import type { UpdateOptions } from "@/types/commands.js";
 
 export async function runUpdate(opts: UpdateOptions): Promise<void> {
-  const spinner = ora('Checking for updates...').start();
+  const projectDir = opts.dir ? resolve(opts.dir) : resolve(process.cwd());
 
-  try {
-    // Check current vs latest version
-    const { current, latest, updateAvailable } = await checkForUpdate();
-    spinner.stop();
-
-    if (!updateAvailable) {
-      logger.info(`Already on latest version: ${pc.green(current)}`);
-      return;
-    }
-
-    // Show version difference
-    logger.info(`Current version: ${pc.yellow(current)}`);
-    logger.info(`Latest version:  ${pc.green(latest)}`);
-    logger.info('');
-
-    // Fetch changelog preview
-    const changelog = await getChangelogPreview(current, latest);
-    logger.info(changelog);
-    logger.info('');
-
-    // If --check flag, just report and exit
-    if (opts.check) {
-      logger.info('Use `epost-kit update` to install the latest version');
-      return;
-    }
-
-    // Confirm update unless --yes flag
-    if (!opts.yes) {
-      const shouldUpdate = await confirm({
-        message: 'Update to latest version?',
-        default: true,
-      });
-
-      if (!shouldUpdate) {
-        logger.info('Update cancelled');
-        return;
-      }
-    }
-
-    // Detect package manager
-    const pm = await detectPackageManager();
-    logger.info(`Detected package manager: ${pc.cyan(pm)}`);
-
-    // Execute update
-    spinner.start('Updating CLI...');
-    try {
-      await executeUpdate(pm);
-      spinner.stop();
-    } catch (error) {
-      spinner.stop();
-      logger.error('Update failed');
-      logger.info('');
-      logger.info('Please update manually:');
-      logger.info(`  ${pc.cyan(getUpdateCommand(pm))}`);
-      throw error;
-    }
-
-    // Verify update succeeded
-    const verified = await verifyUpdate(latest);
-    if (verified) {
-      logger.success(`Successfully updated to version ${pc.green(latest)}`);
-    } else {
-      logger.warn('Update completed but version verification failed');
-      logger.info('Run `epost-kit --version` to check installed version');
-    }
-  } catch (error) {
-    spinner.stop();
-    throw error;
+  if (opts.dir && !(await dirExists(projectDir))) {
+    throw new Error(`Directory not found: ${projectDir}`);
   }
+
+  // Read existing installation metadata
+  const spinner = ora("Reading installation metadata...").start();
+  const metadata = await readMetadata(projectDir);
+
+  if (!metadata) {
+    spinner.fail("No installation found");
+    console.log(
+      pc.yellow(
+        "\nℹ  Run `epost-kit init` first to set up your project.\n",
+      ),
+    );
+    return;
+  }
+
+  spinner.succeed(
+    `Found installation: profile=${pc.cyan(metadata.profile || "(custom)")}, ` +
+    `target=${pc.cyan(metadata.target)}, ` +
+    `packages=${pc.cyan(String(metadata.installedPackages?.length ?? 0))}`,
+  );
+
+  // Show what will be updated
+  logger.info(`\n  Profile  : ${metadata.profile || "(custom)"}`);
+  logger.info(`  Target   : ${metadata.target}`);
+  logger.info(`  Packages : ${(metadata.installedPackages || []).join(", ")}`);
+  logger.info(`  Last run : ${metadata.installedAt.split("T")[0]}\n`);
+
+  // Import and run init with existing config — no prompts, clean reinstall
+  const { runInit } = await import("./init.js");
+  await runInit({
+    ...opts,
+    yes: true,        // skip all prompts
+    fresh: true,      // clean wipe + reinstall
+    profile: metadata.profile,
+    packages: metadata.installedPackages?.join(","),
+    target: metadata.target,
+    dir: opts.dir,
+    // source: inherited from opts if set
+  });
 }

@@ -14,6 +14,7 @@ import { generateMetadata, writeMetadata } from '@/services/file-operations/owne
 import { hashFile } from '@/services/file-operations/checksum.js';
 import { detectPackageManager } from '@/domains/installation/package-manager.js';
 import { execa } from 'execa';
+import { VERSION } from '@/domains/help/branding.js';
 import type { NewOptions } from '@/types/commands.js';
 import type { FileOwnership } from '@/types/index.js';
 
@@ -55,14 +56,14 @@ export async function runNew(opts: NewOptions): Promise<void> {
   }
 
   // Step 4: Select IDE target
-  let target: 'claude' | 'cursor' | 'github-copilot' = 'claude';
+  let target: 'claude' | 'cursor' | 'vscode' = 'claude';
   if (!opts.yes) {
     target = await select({
       message: 'Select IDE target:',
       choices: [
         { name: 'Claude Code', value: 'claude' as const },
         { name: 'Cursor', value: 'cursor' as const },
-        { name: 'GitHub Copilot', value: 'github-copilot' as const },
+        { name: 'VS Code (GitHub Copilot)', value: 'vscode' as const },
       ],
       default: 'claude' as const,
     });
@@ -115,7 +116,7 @@ export async function runNew(opts: NewOptions): Promise<void> {
       };
     }
 
-    const metadata = generateMetadata('0.1.0', target, 'latest', files);
+    const metadata = generateMetadata(VERSION, target, 'latest', files);
     await writeMetadata(targetPath, metadata);
 
     spinner.succeed('Metadata generated');

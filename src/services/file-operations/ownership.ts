@@ -55,7 +55,7 @@ export async function writeMetadata(projectDir: string, metadata: Metadata): Pro
 /** Generate fresh metadata for new installation */
 export function generateMetadata(
   cliVersion: string,
-  target: 'claude' | 'cursor' | 'github-copilot',
+  target: 'claude' | 'cursor' | 'vscode',
   kitVersion: string,
   files: Record<string, FileOwnership>,
   options?: { profile?: string; installedPackages?: string[] }

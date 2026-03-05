@@ -1,288 +1,125 @@
-#!/usr/bin/env bash
+#!/bin/bash
+set -e
 
-set -euo pipefail
+# ============================================================================
+# epost_agent_kit installer for macOS/Linux
+# ============================================================================
+# Downloads the latest release from GitHub and installs epost-kit packages.
+#
+# Requirements:
+#   - curl
+#   - tar
+#   - Node.js >=18.0.0 (for epost-kit CLI)
+#
+# Usage:
+#   bash install-macos.sh
+#   bash <(curl -s https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/master/install-macos.sh)
+# ============================================================================
 
-# Color codes
-GREEN='\033[0;32m'
+REPO="Klara-copilot/epost_agent_kit"
+VERSION_URL="https://api.github.com/repos/${REPO}/releases/latest"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.epost}"
+EXTRACT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/epost_install.XXXXXX")
+
+# ANSI color codes
 RED='\033[0;31m'
+GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Constants
-REQUIRED_NODE_VERSION="18.0.0"
-REPO="Klara-copilot/epost-agent-kit-cli"
-CLI_NAME="epost-kit"
-
-# Utility functions
-print_success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}✗${NC} $1" >&2
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
-
-print_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
-}
-
-print_banner() {
-    echo ""
-    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║     ePost-Kit CLI Installer v1.0      ║${NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
-    echo ""
-}
-
-# Version comparison function
-version_gte() {
-    # Returns 0 if $1 >= $2, 1 otherwise
-    printf '%s\n%s' "$2" "$1" | sort -V -C
-}
-
-check_node() {
-    print_info "Checking Node.js version..."
-
-    if ! command -v node &> /dev/null; then
-        print_error "Node.js is not installed"
-        echo "Please install Node.js >= ${REQUIRED_NODE_VERSION} from https://nodejs.org/"
-        exit 1
-    fi
-
-    local node_version
-    node_version=$(node --version | sed 's/v//')
-
-    if ! version_gte "$node_version" "$REQUIRED_NODE_VERSION"; then
-        print_error "Node.js version $node_version is too old"
-        echo "Required: >= ${REQUIRED_NODE_VERSION}"
-        echo "Please upgrade Node.js from https://nodejs.org/"
-        exit 1
-    fi
-
-    print_success "Node.js $node_version detected"
-}
-
-check_npm() {
-    print_info "Checking npm availability..."
-
-    if ! command -v npm &> /dev/null; then
-        print_error "npm is not available"
-        echo "Please reinstall Node.js with npm included"
-        exit 1
-    fi
-
-    local npm_version
-    npm_version=$(npm --version)
-    print_success "npm $npm_version detected"
-}
-
-check_gh_cli() {
-    print_info "Checking GitHub CLI..."
-
-    if ! command -v gh &> /dev/null; then
-        print_error "GitHub CLI (gh) is not installed"
-        echo ""
-        echo "Install instructions:"
-        echo "  macOS:  brew install gh"
-        echo "  Ubuntu: sudo apt install gh"
-        echo ""
-        echo "Or visit: https://cli.github.com/"
-        exit 1
-    fi
-
-    local gh_version
-    gh_version=$(gh --version | head -n1 | awk '{print $3}')
-    print_success "GitHub CLI $gh_version detected"
-}
-
-check_gh_auth() {
-    print_info "Checking GitHub authentication..."
-
-    if ! gh auth status &> /dev/null; then
-        print_error "Not authenticated with GitHub CLI"
-        echo ""
-        echo "Please run: gh auth login"
-        echo "Then re-run this installer"
-        exit 1
-    fi
-
-    print_success "GitHub CLI authenticated"
-}
-
-check_org_access() {
-    print_info "Verifying access to ${REPO}..."
-
-    if ! gh repo view "$REPO" &> /dev/null; then
-        print_error "Cannot access repository: ${REPO}"
-        echo ""
-        echo "Possible causes:"
-        echo "  1. Repository doesn't exist"
-        echo "  2. You don't have access to the organization"
-        echo "  3. Network connectivity issues"
-        echo ""
-        echo "Please verify your GitHub permissions and try again"
-        exit 1
-    fi
-
-    print_success "Repository access verified"
-}
-
-clone_repository() {
-    local temp_dir
-    temp_dir="/tmp/epost-kit-$(date +%s)"
-
-    print_info "Cloning repository to temporary directory..." >&2
-
-    if ! gh repo clone "$REPO" "$temp_dir" -- --quiet; then
-        print_error "Failed to clone repository" >&2
-        exit 1
-    fi
-
-    print_success "Repository cloned to $temp_dir" >&2
-    echo "$temp_dir"
-}
-
-build_cli() {
-    local repo_dir="$1"
-
-    cd "$repo_dir"
-
-    print_info "Installing dependencies..."
-    if ! npm install --silent; then
-        print_error "Failed to install dependencies"
-        exit 1
-    fi
-    print_success "Dependencies installed"
-
-    print_info "Building TypeScript project..."
-    if ! npm run build; then
-        print_error "Build failed"
-        exit 1
-    fi
-
-    if [[ ! -f "dist/cli.js" ]]; then
-        print_error "Build output not found: dist/cli.js"
-        exit 1
-    fi
-
-    print_success "Build completed successfully"
-}
-
-install_cli() {
-    print_info "Creating package tarball..."
-
-    local tarball
-    if ! tarball=$(npm pack --silent 2>&1 | tail -1); then
-        print_error "Failed to create package tarball"
-        exit 1
-    fi
-
-    print_info "Installing CLI globally from tarball..."
-
-    if npm install -g "$tarball" &> /dev/null; then
-        print_success "CLI installed globally"
-    elif sudo npm install -g "$tarball" &> /dev/null; then
-        print_warning "Required sudo permissions for global installation"
-        print_success "CLI installed globally with sudo"
-    else
-        print_error "Failed to install CLI globally"
-        echo ""
-        echo "Try running manually:"
-        echo "  npm install -g $tarball"
-        exit 1
-    fi
-
-    # Clean up tarball
-    rm -f "$tarball"
-}
-
-verify_installation() {
-    print_info "Verifying installation..."
-
-    if ! command -v "$CLI_NAME" &> /dev/null; then
-        print_error "CLI command not found in PATH"
-        echo ""
-        echo "Installation completed but CLI is not accessible"
-        echo "You may need to:"
-        echo "  1. Restart your terminal"
-        echo "  2. Check your npm global bin directory is in PATH"
-        exit 1
-    fi
-
-    local version
-    if version=$("$CLI_NAME" --version 2>&1); then
-        print_success "Installation verified: $version"
-    else
-        print_error "CLI installed but --version check failed"
-        exit 1
-    fi
-}
+info()    { printf "${BLUE}[INFO]${NC} %s\n" "$1"; }
+success() { printf "${GREEN}[OK]${NC}   %s\n" "$1"; }
+error()   { printf "${RED}[ERR]${NC}  %s\n" "$1"; }
+warn()    { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
 
 cleanup() {
-    local temp_dir="$1"
+  rm -rf "$EXTRACT_DIR"
+}
+trap cleanup EXIT
 
-    if [[ -d "$temp_dir" ]]; then
-        print_info "Cleaning up temporary files..."
-        rm -rf "$temp_dir"
-        print_success "Cleanup completed"
-    fi
+# ============================================================================
+# 1. Get latest release download URL
+# ============================================================================
+
+info "Fetching latest release info from GitHub..."
+
+RELEASE_JSON=$(curl -sf "$VERSION_URL" 2>/dev/null) || {
+  error "Failed to fetch release info from GitHub"
+  error "URL: $VERSION_URL"
+  exit 1
 }
 
-print_next_steps() {
-    echo ""
-    echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║     Installation Successful! 🎉        ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
-    echo ""
-    echo "Next steps:"
-    echo ""
-    echo "  1. Run system diagnostics:"
-    echo -e "     ${BLUE}${CLI_NAME} doctor${NC}"
-    echo ""
-    echo "  2. Onboard your project:"
-    echo -e "     ${BLUE}${CLI_NAME} onboard${NC}"
-    echo ""
-    echo "  3. Get help:"
-    echo -e "     ${BLUE}${CLI_NAME} --help${NC}"
-    echo ""
+RELEASE_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*\.tar\.gz"' | head -1 | cut -d'"' -f4)
+
+if [ -z "$RELEASE_URL" ]; then
+  error "Failed to find .tar.gz download URL in latest release"
+  error "Check: https://github.com/${REPO}/releases/latest"
+  exit 1
+fi
+
+ARTIFACT=$(basename "$RELEASE_URL")
+success "Found release: $ARTIFACT"
+
+# ============================================================================
+# 2. Download artifact
+# ============================================================================
+
+info "Downloading $ARTIFACT..."
+curl -L -o "$EXTRACT_DIR/$ARTIFACT" "$RELEASE_URL" || {
+  error "Download failed"
+  exit 1
+}
+success "Downloaded: $ARTIFACT"
+
+# ============================================================================
+# 3. Extract
+# ============================================================================
+
+info "Extracting..."
+tar xzf "$EXTRACT_DIR/$ARTIFACT" -C "$EXTRACT_DIR" || {
+  error "Extraction failed"
+  exit 1
 }
 
-# Main installation flow
-main() {
-    temp_dir=""
+EXTRACTED_DIR=$(ls -d "$EXTRACT_DIR/epost_agent_kit-"* 2>/dev/null | head -1)
 
-    # Trap cleanup on exit
-    trap 'cleanup "$temp_dir"' EXIT
+if [ -z "$EXTRACTED_DIR" ]; then
+  error "Could not find extracted directory (expected epost_agent_kit-X.Y.Z/)"
+  exit 1
+fi
 
-    print_banner
+success "Extracted: $(basename "$EXTRACTED_DIR")"
 
-    # Prerequisites
-    check_node
-    check_npm
-    check_gh_cli
-    check_gh_auth
-    check_org_access
+# ============================================================================
+# 4. Install
+# ============================================================================
 
-    echo ""
+info "Installing to $INSTALL_DIR..."
+mkdir -p "$INSTALL_DIR"
 
-    # Clone and build
-    temp_dir=$(clone_repository)
-    build_cli "$temp_dir"
+cp -r "$EXTRACTED_DIR/packages" "$INSTALL_DIR/"
+cp "$EXTRACTED_DIR/.epost-metadata.json" "$INSTALL_DIR/"
 
-    echo ""
+if [ -d "$EXTRACTED_DIR/profiles" ]; then
+  cp -r "$EXTRACTED_DIR/profiles" "$INSTALL_DIR/"
+fi
 
-    # Install
-    install_cli
-    verify_installation
+if [ -d "$EXTRACTED_DIR/templates" ]; then
+  cp -r "$EXTRACTED_DIR/templates" "$INSTALL_DIR/"
+fi
 
-    # Success
-    print_next_steps
-}
+success "Installed to $INSTALL_DIR"
 
-# Run main function
-main
+# ============================================================================
+# 5. Done
+# ============================================================================
+
+printf "\n${GREEN}Installation complete!${NC}\n\n"
+printf "  ${BLUE}Next steps:${NC}\n"
+printf "    Install the CLI globally:\n"
+printf "      npm install -g epost-agent-kit-cli\n\n"
+printf "    Or use via npx:\n"
+printf "      npx epost-agent-kit-cli init\n\n"
+printf "    Then run in your project:\n"
+printf "      epost-kit init\n\n"

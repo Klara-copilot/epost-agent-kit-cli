@@ -12,6 +12,7 @@ import {
   readdir,
   copyFile,
   mkdir,
+  rm,
 } from "node:fs/promises";
 import { select, confirm, checkbox } from "@inquirer/prompts";
 import ora from "ora";
@@ -43,8 +44,15 @@ import {
   generateClaudeMd,
   collectSnippets,
   type ClaudeMdContext,
+  type PackageSnippet,
 } from "@/domains/help/claude-md-generator.js";
-import { detectProjectProfile, listProfiles } from "@/domains/packages/profile-loader.js";
+import { detectProjectProfile, listProfiles, getProfileInfo } from "@/domains/packages/profile-loader.js";
+import { VERSION } from "@/domains/help/branding.js";
+import {
+  createTargetAdapter,
+  type TargetAdapter,
+  type TargetName,
+} from "@/domains/installation/target-adapter.js";
 import type { InitOptions } from "@/types/commands.js";
 import type { FileOwnership } from "@/types/index.js";
 import {
@@ -159,39 +167,55 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // ── Step 2/7: Detect profile ──
+  // ── Step 2/7: Select profiles ──
   let profileName = opts.profile;
+  let mergedProfilePackages: string[] | undefined;
 
   if (!profileName && !packagesList) {
-    logger.step(2, 7, "Detecting project type");
-    // Try auto-detect
+    logger.step(2, 7, "Selecting profiles");
     const profiles = await loadProfiles(profilesPath);
-    const detected = await detectProjectProfile(projectDir, profiles);
 
-    if (detected && !opts.yes) {
-      const useDetected = await confirm({
-        message: `Detected project type: ${detected.displayName} (${detected.confidence} confidence). Use this profile?`,
-        default: true,
-      });
-
-      if (useDetected) {
+    if (opts.yes) {
+      // CI mode: auto-detect and use detected profile
+      const detected = await detectProjectProfile(projectDir, profiles);
+      if (detected) {
         profileName = detected.profile;
+        logger.info(`Auto-detected profile: ${detected.displayName}`);
       }
-    } else if (detected && opts.yes) {
-      profileName = detected.profile;
-      logger.info(`Auto-detected profile: ${detected.displayName}`);
-    }
-
-    // If still no profile, let user choose
-    if (!profileName && !packagesList && !opts.yes) {
+    } else {
+      // Interactive: multi-select with auto-detected profile pre-checked
+      const detected = await detectProjectProfile(projectDir, profiles);
       const allProfiles = listProfiles(profiles);
-      profileName = await select({
-        message: "Select a profile:",
+
+      if (detected) {
+        logger.info(`Detected project type: ${detected.displayName} (${detected.confidence} confidence)`);
+      }
+
+      const selectedProfiles = await checkbox({
+        message: "Select profiles (space to toggle, enter to confirm):",
         choices: allProfiles.map((p) => ({
-          name: `${p.displayName} (${p.packages.length} packages)`,
+          name: `${p.displayName} (${p.packages.join(", ")})`,
           value: p.name,
+          checked: detected ? p.name === detected.profile : false,
         })),
       });
+
+      if (selectedProfiles.length === 0) {
+        logger.info("No profiles selected. Cancelled.");
+        return;
+      } else if (selectedProfiles.length === 1) {
+        profileName = selectedProfiles[0];
+      } else {
+        // Merge packages from all selected profiles with deduplication
+        const pkgSet = new Set<string>();
+        for (const pName of selectedProfiles) {
+          const pInfo = getProfileInfo(pName, profiles);
+          if (pInfo) pInfo.packages.forEach((pkg) => pkgSet.add(pkg));
+        }
+        mergedProfilePackages = [...pkgSet];
+        profileName = selectedProfiles.join("+");
+        logger.info(`Merged ${selectedProfiles.length} profiles: ${profileName}`);
+      }
     }
   }
 
@@ -201,8 +225,8 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   const resolved = await resolvePackages({
     packagesDir,
     profilesPath,
-    profile: profileName,
-    packages: packagesList,
+    profile: mergedProfilePackages ? undefined : profileName,
+    packages: mergedProfilePackages ?? packagesList,
     includeOptional: optionalList,
     exclude: excludeList,
   });
@@ -256,28 +280,35 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     }
   }
 
-  // Select IDE target
-  let target: "claude" | "cursor" | "github-copilot" =
-    opts.target || metadata?.target || "claude";
+  // ── Select IDE/editor ──
+  const validTargets: TargetName[] = ["claude", "cursor", "vscode"];
+  let target: TargetName =
+    (opts.target as TargetName) ||
+    (metadata?.target as TargetName) ||
+    "claude";
+
+  if (opts.target && !validTargets.includes(opts.target as TargetName)) {
+    throw new Error(
+      `Invalid target "${opts.target}". Valid: ${validTargets.join(", ")}`,
+    );
+  }
+
   if (!opts.target && !metadata && !opts.yes) {
+    logger.step(3, 7, "Selecting editor");
     target = await select({
-      message: "Select IDE target:",
+      message: "Which editor/IDE are you using?",
       choices: [
         { name: "Claude Code", value: "claude" as const },
         { name: "Cursor", value: "cursor" as const },
-        { name: "GitHub Copilot", value: "github-copilot" as const },
+        { name: "VS Code (GitHub Copilot)", value: "vscode" as const },
       ],
-      default: "claude" as const,
+      default: target,
     });
   }
 
-  // Determine install directory based on target
-  const installDirName =
-    target === "claude"
-      ? ".claude"
-      : target === "cursor"
-        ? ".cursor"
-        : ".github";
+  // Create adapter — drives install dir, file transforms, and hook format
+  const adapter = await createTargetAdapter(target);
+  const installDirName = adapter.installDir;
   const installDir = join(projectDir, installDirName);
 
   // Load manifests for install
@@ -325,16 +356,19 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     }
   }
 
-  // ── Step 5/7: Backup (if updating) ──
+  // ── Step 5/7: Backup then clean-wipe install dir ──
+  logger.step(5, 7, "Installing packages");
   if (isUpdate) {
-    logger.step(5, 7, "Creating backup");
     const backupSpinner = ora("Creating backup...").start();
     await createBackup(projectDir, "pre-update", { subdirectory: installDirName });
     backupSpinner.succeed("Backup created");
   }
 
-  // ── Step 5/7: Install packages ──
-  logger.step(5, 7, "Installing packages");
+  // Always wipe install dir for a clean, deterministic install
+  if (await dirExists(installDir)) {
+    await rm(installDir, { recursive: true, force: true });
+  }
+
   const installSpinner = ora("Installing packages...").start();
   await mkdir(installDir, { recursive: true });
 
@@ -391,21 +425,43 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
         continue;
       }
 
-      // Directory copy
+      // Directory copy — apply adapter transforms for agents/skills, path-fix for hooks
       if (await dirExists(srcPath)) {
-        // Snapshot existing files before copy to avoid overwriting prior package attribution
-        const existingFiles = (await dirExists(destPath))
-          ? new Set(await scanDirFiles(destPath))
+        const isAgentDir = destSubDir.startsWith("agents");
+        const isSkillDir = destSubDir.startsWith("skills");
+        const isHookDir = destSubDir.startsWith("hooks");
+
+        // Hook scripts go to adapter's hookScriptDir (may differ for vscode)
+        const actualDestSubDir = isHookDir ? adapter.hookScriptDir() : destSubDir;
+        const actualDestPath = join(installDir, actualDestSubDir);
+
+        const existingFiles = (await dirExists(actualDestPath))
+          ? new Set(await scanDirFiles(actualDestPath))
           : new Set<string>();
 
-        await safeCopyDir(srcPath, destPath);
+        await mkdir(actualDestPath, { recursive: true });
 
-        // Track only NEW files from this package (not files from prior packages)
-        const allFilesNow = await scanDirFiles(destPath);
+        if (isAgentDir || isSkillDir) {
+          await transformAndCopyDir(
+            srcPath,
+            actualDestPath,
+            adapter,
+            isAgentDir ? "agent" : "skill",
+          );
+        } else {
+          await safeCopyDir(srcPath, actualDestPath);
+          if (isHookDir) {
+            // Replace .claude/ references in hook scripts for non-claude targets
+            await replacePathsInDir(actualDestPath, adapter);
+          }
+        }
+
+        // Track only NEW files from this package
+        const allFilesNow = await scanDirFiles(actualDestPath);
         for (const file of allFilesNow) {
           if (existingFiles.has(file)) continue;
-          const relativePath = join(installDirName, destSubDir, file);
-          const fullPath = join(destPath, file);
+          const relativePath = join(installDirName, actualDestSubDir, file);
+          const fullPath = join(actualDestPath, file);
           const checksum = await hashFile(fullPath);
           allFiles[relativePath] = {
             path: relativePath,
@@ -514,49 +570,27 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     skillIndexSpinner.warn("No skills directory found");
   }
 
-  // Merge settings
-  const settingsSpinner = ora("Merging settings...").start();
-  const settingsOutput = join(installDir, "settings.json");
-  const { sources: settingsSources } = await mergeAndWriteSettings(
-    settingsPackages,
-    settingsOutput,
-  );
-  settingsSpinner.succeed(
-    `Settings merged from ${settingsSources.length} packages`,
-  );
-
-  // Generate CLAUDE.md
-  const claudeSpinner = ora("Generating CLAUDE.md...").start();
+  // Collect snippets + platform info (used by both claude and copilot instruction generators)
   const snippets = await collectSnippets(snippetPackages);
-  const templatesDir = await kitPaths.getTemplatesDir();
-  const templatePath = templatesDir
-    ? join(templatesDir, "repo-claude.md.hbs")
-    : "";
-
   const platforms = new Set<string>();
   for (const pkgName of resolved.packages) {
     const manifest = manifests.get(pkgName);
-    if (manifest) {
-      for (const p of manifest.platforms) platforms.add(p);
-    }
+    if (manifest) for (const p of manifest.platforms) platforms.add(p);
   }
 
   // Extract kit version from resolved packages (all unified to same version)
   let kitVersion = "2.0.0"; // fallback
   for (const pkgName of resolved.packages) {
     const manifest = manifests.get(pkgName);
-    if (manifest?.version) {
-      kitVersion = manifest.version;
-      break;
-    }
+    if (manifest?.version) { kitVersion = manifest.version; break; }
   }
 
-  const claudeContext: ClaudeMdContext = {
+  const instrContext: ClaudeMdContext = {
     profile: profileName,
     packages: resolved.packages,
     target,
     kitVersion,
-    cliVersion: "0.1.0",
+    cliVersion: VERSION,
     installedAt: new Date().toISOString().split("T")[0],
     projectName,
     platforms: [...platforms],
@@ -565,14 +599,61 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     commandCount: totalCommands,
   };
 
-  const claudeMdPath = join(projectDir, "CLAUDE.md");
-  await generateClaudeMd(templatePath, claudeContext, snippets, claudeMdPath);
-  claudeSpinner.succeed("CLAUDE.md generated");
+  if (adapter.usesSettingsJson()) {
+    // Claude/Cursor: write settings.json directly
+    const settingsSpinner = ora("Merging settings...").start();
+    const settingsOutput = join(installDir, "settings.json");
+    const { sources: settingsSources } = await mergeAndWriteSettings(
+      settingsPackages,
+      settingsOutput,
+    );
+    settingsSpinner.succeed(`Settings merged from ${settingsSources.length} packages`);
+
+    // Generate CLAUDE.md at project root
+    const claudeSpinner = ora("Generating CLAUDE.md...").start();
+    const templatesDir = await kitPaths.getTemplatesDir();
+    const templatePath = templatesDir
+      ? join(templatesDir, "repo-claude.md.hbs")
+      : "";
+    await generateClaudeMd(
+      templatePath,
+      instrContext,
+      snippets,
+      join(projectDir, "CLAUDE.md"),
+    );
+    claudeSpinner.succeed("CLAUDE.md generated");
+  } else {
+    // VS Code / GitHub Copilot: merge settings in-memory → transform to hooks.json
+    const settingsSpinner = ora("Generating hooks configuration...").start();
+    const { tmpdir } = await import("node:os");
+    const tmpPath = join(tmpdir(), `epost-settings-${Date.now()}.json`);
+    const { merged } = await mergeAndWriteSettings(settingsPackages, tmpPath);
+    const hookResult = adapter.transformHooks(
+      merged as Record<string, unknown>,
+    );
+    if (hookResult) {
+      const hooksDir = join(installDir, "hooks");
+      await mkdir(hooksDir, { recursive: true });
+      await writeFile(
+        join(hooksDir, hookResult.filename),
+        hookResult.content,
+        "utf-8",
+      );
+    }
+    try { const { rm } = await import("node:fs/promises"); await rm(tmpPath); } catch { /* ignore */ }
+    settingsSpinner.succeed("Hooks configuration generated");
+
+    // Generate copilot-instructions.md inside install dir
+    const copilotSpinner = ora("Generating copilot-instructions.md...").start();
+    const instrPath = join(installDir, adapter.rootInstructionsFilename());
+    await generateCopilotInstructions(instrContext, snippets, instrPath);
+    copilotSpinner.succeed("copilot-instructions.md generated");
+  }
 
   // ── Step 7/7: Finalize ──
   logger.step(7, 7, "Finalizing");
   const metaSpinner = ora("Updating metadata...").start();
-  const newMetadata = generateMetadata("0.1.0", target, kitVersion, allFiles, {
+  const newMetadata = generateMetadata(VERSION, target, kitVersion, allFiles, {
     profile: profileName,
     installedPackages: resolved.packages,
   });
@@ -585,7 +666,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   if (profileName) summaryPairs.push(["Profile", profileName]);
   summaryPairs.push([
     "Target",
-    `${target === "claude" ? "Claude Code" : target === "cursor" ? "Cursor" : "GitHub Copilot"} (${installDirName}/)`,
+    `${target === "claude" ? "Claude Code" : target === "cursor" ? "Cursor" : "VS Code"} (${installDirName}/)`,
   ]);
   summaryPairs.push(["Packages", `${resolved.packages.length}`]);
   summaryPairs.push(["Agents", `${totalAgents}`]);
@@ -597,12 +678,104 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     }),
   );
 
-  console.log(
-    box(
-      `Run ${pc.bold("claude")} to activate your AI assistant.\nType ${pc.bold("/")} to discover all available commands.`,
-      { title: "Ready" },
-    ),
+  const readyMsg =
+    target === "vscode"
+      ? `Open VS Code → Copilot Chat → type ${pc.bold("@")} to discover agents.\nType ${pc.bold("/")} to discover all available skills.`
+      : `Run ${pc.bold("claude")} to activate your AI assistant.\nType ${pc.bold("/")} to discover all available commands.`;
+  console.log(box(readyMsg, { title: "Ready" }));
+}
+
+// ─── Utility: transform and copy directory through adapter ───
+
+async function transformAndCopyDir(
+  srcDir: string,
+  destDir: string,
+  adapter: TargetAdapter,
+  fileType: "agent" | "skill",
+): Promise<void> {
+  const files = await scanDirFiles(srcDir);
+  for (const relPath of files) {
+    const srcFile = join(srcDir, relPath);
+    const content = await readFile(srcFile, "utf-8");
+
+    if (!relPath.endsWith(".md")) {
+      // Non-markdown: copy as-is with path refs replaced
+      const destFile = join(destDir, relPath);
+      await mkdir(dirname(destFile), { recursive: true });
+      await writeFile(destFile, adapter.replacePathRefs(content), "utf-8");
+      continue;
+    }
+
+    const result =
+      fileType === "agent"
+        ? adapter.transformAgent(content, basename(relPath))
+        : { content: adapter.transformSkill(content), filename: relPath };
+
+    // agents: new filename may differ (e.g. .agent.md), preserve sub-dir
+    // skills: filename IS relPath (full relative path)
+    const destFile =
+      fileType === "agent"
+        ? join(destDir, dirname(relPath), result.filename)
+        : join(destDir, result.filename);
+    await mkdir(dirname(destFile), { recursive: true });
+    await writeFile(destFile, result.content, "utf-8");
+  }
+}
+
+// ─── Utility: replace path references in hook script files ───
+
+async function replacePathsInDir(
+  dir: string,
+  adapter: TargetAdapter,
+): Promise<void> {
+  const files = await scanDirFiles(dir);
+  for (const relPath of files) {
+    if (!/\.(cjs|js|json)$/.test(relPath)) continue;
+    const filePath = join(dir, relPath);
+    const content = await readFile(filePath, "utf-8");
+    const transformed = adapter.replacePathRefs(content);
+    if (transformed !== content) await writeFile(filePath, transformed, "utf-8");
+  }
+}
+
+// ─── Utility: generate copilot-instructions.md for VS Code target ───
+
+async function generateCopilotInstructions(
+  ctx: ClaudeMdContext,
+  snippets: PackageSnippet[],
+  outputPath: string,
+): Promise<void> {
+  const lines: string[] = [
+    `# GitHub Copilot Instructions`,
+    ``,
+    `**Project**: ${ctx.projectName}`,
+    `**Profile**: ${ctx.profile || "(custom)"}`,
+    `**Packages**: ${ctx.packages.join(", ")}`,
+    `**Installed by**: epost-kit v${ctx.cliVersion} on ${ctx.installedAt}`,
+    ``,
+    `## Agent System`,
+    ``,
+    `- **Agents**: \`.github/agents/\` — ${ctx.agentCount} agents`,
+    `- **Skills**: \`.github/skills/\` — ${ctx.skillCount} invokable skills`,
+    ``,
+  ];
+
+  // Include package snippets (strip frontmatter from each)
+  for (const snippet of snippets) {
+    if (snippet.content) {
+      lines.push(snippet.content, ``);
+    }
+  }
+
+  lines.push(
+    `## Usage`,
+    ``,
+    `Open Copilot Chat → type \`@\` to select an agent, \`/\` for skills.`,
+    ``,
   );
+
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, lines.join("\n"), "utf-8");
 }
 
 // ─── Utility: scan directory for relative file paths ───
@@ -646,7 +819,8 @@ async function generateSkillIndex(skillsDir: string): Promise<{
   skills: SkillIndexEntry[];
 }> {
   const skillFiles = await findSkillFiles(skillsDir);
-  const skills: SkillIndexEntry[] = [];
+  // Deduplicate by skill name — same skill may exist in multiple packages/profiles
+  const skillsByName = new Map<string, SkillIndexEntry & { invokable: boolean }>();
 
   for (const filePath of skillFiles) {
     try {
@@ -654,31 +828,43 @@ async function generateSkillIndex(skillsDir: string): Promise<{
       const metadata = extractSkillFrontmatter(content);
       if (!metadata || !metadata.name) continue;
 
+      const name = typeof metadata.name === "string" ? metadata.name : "";
+      if (!name || skillsByName.has(name)) continue; // first-wins dedup
+
       const relativePath = filePath.substring(skillsDir.length + 1); // strip skillsDir prefix + /
       const asStr = (v: string | string[] | undefined, fallback: string) =>
         typeof v === "string" ? v : fallback;
       const asArr = (v: string | string[] | undefined, fallback: string[]) =>
         Array.isArray(v) ? v : fallback;
-      skills.push({
-        name: asStr(metadata.name, ""),
+      skillsByName.set(name, {
+        name,
         description: asStr(metadata.description, ""),
         keywords: asArr(metadata.keywords, []),
         platforms: asArr(metadata.platforms, ["all"]),
         triggers: asArr(metadata.triggers, []),
         "agent-affinity": asArr(metadata["agent-affinity"], []),
         path: relativePath,
+        invokable: metadata["user-invocable"] === "true",
       });
     } catch {
       // Skip files that can't be read
     }
   }
 
-  skills.sort((a, b) => a.name.localeCompare(b.name));
+  const allSkills = [...skillsByName.values()].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  // Count only unique user-invocable skills for the summary
+  const invokableCount = allSkills.filter((s) => s.invokable).length;
+  // Strip internal `invokable` field before writing to index
+  const skills: SkillIndexEntry[] = allSkills.map(
+    ({ invokable: _invokable, ...entry }) => entry,
+  );
 
   return {
     generated: new Date().toISOString(),
     version: "1.0.0",
-    count: skills.length,
+    count: invokableCount,
     skills,
   };
 }

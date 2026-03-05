@@ -8,8 +8,8 @@
 export interface EpostConfig {
   /** GitHub repository URL (default: Klara-copilot/epost_agent_kit) */
   repository?: string;
-  /** Target IDE (claude | cursor | github-copilot) */
-  target?: 'claude' | 'cursor' | 'github-copilot';
+  /** Target IDE (claude | cursor | vscode) */
+  target?: 'claude' | 'cursor' | 'vscode';
   /** Installation directory (default: .claude | .cursor | .github) */
   installDir?: string;
   /** Protected file patterns to exclude from modification */
@@ -41,7 +41,7 @@ export interface Metadata {
   /** epost-kit CLI version used for installation */
   cliVersion: string;
   /** Target IDE */
-  target: 'claude' | 'cursor' | 'github-copilot';
+  target: 'claude' | 'cursor' | 'vscode';
   /** Installed epost-agent-kit version */
   kitVersion: string;
   /** Active profile (if installed via profile) */

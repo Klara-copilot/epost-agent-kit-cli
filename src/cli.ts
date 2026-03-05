@@ -44,6 +44,7 @@ cli
   .option("--fresh", "Fresh install (ignore existing files)")
   .option("--force", "Force fresh download and reinstall (combines --force-download and --fresh)")
   .option("--force-download", "Skip cache and re-download release from GitHub")
+  .option("--source", "Use local source repo for packages (dev mode, skips GitHub download)")
   .option("--dry-run", "Preview changes without applying")
   .option("--dir <path>", "Target project directory")
   .action(async (opts: any) => {
@@ -81,13 +82,24 @@ cli
     });
   });
 
-// Command: update - Update installed kit
+// Command: update - Re-install kit packages from existing metadata (no setup flow)
 cli
-  .command("update", "Update installed kit to latest version")
-  .option("--check", "Only check for updates")
+  .command("update", "Update installed kit packages (uses existing profile/target)")
+  .option("--dir <path>", "Target project directory")
+  .option("--source", "Use local source repo for packages (dev mode)")
+  .option("--force-download", "Skip cache and re-download release from GitHub")
   .action(async (opts: any) => {
     const { runUpdate } = await import("./commands/update.js");
     await runUpdate({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: upgrade - Self-update CLI to latest npm version
+cli
+  .command("upgrade", "Upgrade epost-kit CLI to latest version")
+  .option("--check", "Only check if upgrade is available")
+  .action(async (opts: any) => {
+    const { runUpgrade } = await import("./commands/upgrade.js");
+    await runUpgrade({ ...cli.globalCommand.options, ...opts });
   });
 
 // Command: uninstall - Remove kit

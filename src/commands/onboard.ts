@@ -50,69 +50,44 @@ export async function runOnboard(opts: OnboardOptions): Promise<void> {
     choices: teamChoices,
   });
 
-  // ── Step 2/6: Role selection ──
-  logger.step(2, 6, "Choose your role");
-  let selectedProfile: string;
+  // ── Step 2/6: Profile selection (multi-select) ──
+  logger.step(2, 6, "Select profiles");
+  const allProfiles = listProfiles(profiles);
+  const teamProfiles =
+    teamChoice !== "__other__"
+      ? new Set(findProfilesByTeam(teamChoice, profiles).map((p) => p.name))
+      : new Set<string>();
 
-  if (teamChoice === "__other__") {
-    const allProfiles = listProfiles(profiles);
-    selectedProfile = await select({
-      message: "Select a developer profile:",
-      choices: allProfiles.map((p) => ({
-        name: `${p.displayName} (${p.packages.join(", ")})`,
-        value: p.name,
-      })),
-    });
-  } else {
-    const teamProfiles = findProfilesByTeam(teamChoice, profiles);
+  const selectedProfiles = await checkbox({
+    message: "Select profiles (space to toggle, enter to confirm):",
+    choices: allProfiles.map((p) => ({
+      name: `${p.displayName} (${p.packages.join(", ")})`,
+      value: p.name,
+      checked: teamProfiles.has(p.name),
+    })),
+  });
 
-    if (teamProfiles.length === 1) {
-      logger.info(`\nSuggested profile: ${teamProfiles[0].displayName}`);
-      logger.info(`Packages: ${teamProfiles[0].packages.join(", ")}`);
-      const useIt = await confirm({
-        message: "Use this profile?",
-        default: true,
-      });
-      if (useIt) {
-        selectedProfile = teamProfiles[0].name;
-      } else {
-        const allProfiles = listProfiles(profiles);
-        selectedProfile = await select({
-          message: "Select a developer profile:",
-          choices: allProfiles.map((p) => ({
-            name: `${p.displayName} (${p.packages.join(", ")})`,
-            value: p.name,
-          })),
-        });
-      }
-    } else if (teamProfiles.length > 1) {
-      selectedProfile = await select({
-        message: "Select your role:",
-        choices: teamProfiles.map((p) => ({
-          name: `${p.displayName} (${p.packages.length} packages)`,
-          value: p.name,
-        })),
-      });
-    } else {
-      // No profiles for this team — show all
-      const allProfiles = listProfiles(profiles);
-      selectedProfile = await select({
-        message: "Select a developer profile:",
-        choices: allProfiles.map((p) => ({
-          name: `${p.displayName} (${p.packages.join(", ")})`,
-          value: p.name,
-        })),
-      });
-    }
+  if (selectedProfiles.length === 0) {
+    logger.info("No profiles selected. Setup cancelled.");
+    return;
   }
 
-  const info = getProfileInfo(selectedProfile, profiles);
+  // Merge packages from all selected profiles
+  const selectedProfile =
+    selectedProfiles.length === 1
+      ? selectedProfiles[0]
+      : selectedProfiles.join("+");
+
+  const profilePkgs = new Set<string>();
+  for (const pName of selectedProfiles) {
+    const pInfo = getProfileInfo(pName, profiles);
+    if (pInfo) pInfo.packages.forEach((pkg) => profilePkgs.add(pkg));
+  }
 
   // ── Step 3/6: Package selection (all packages, profile ones pre-checked) ──
   logger.step(3, 6, "Select packages");
 
   const allManifests = await loadAllManifests(packagesDir);
-  const profilePkgs = new Set(info?.packages || []);
 
   const selected = await checkbox({
     message: "Select packages to install:",
@@ -205,18 +180,20 @@ export async function runOnboard(opts: OnboardOptions): Promise<void> {
 
   process.chdir(targetDir);
 
-  // Optimus team defaults to GitHub Copilot
-  const target = teamChoice === "optimus" ? "github-copilot" : undefined;
+  // Optimus team defaults to VS Code (GitHub Copilot)
+  const target: "vscode" | undefined =
+    teamChoice === "optimus" ? "vscode" : undefined;
 
   await runInit({
     ...opts,
+    profile: selectedProfile,
     packages: selected.join(","),
     target,
     source: true, // Use source repo for package resolution (discovered from source)
   });
 
   // Post-install success message
-  if (target === "github-copilot") {
+  if (target === "vscode") {
     console.log(
       box(
         `Setup complete!\n\nOpen VS Code to activate GitHub Copilot.\nType ${pc.bold("/")} in chat to discover available prompts.`,
