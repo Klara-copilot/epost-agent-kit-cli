@@ -205,7 +205,7 @@ export class CopilotAdapter implements TargetAdapter {
   }
 
   hookScriptDir(): string {
-    return "hooks/scripts";
+    return "hooks"; // scripts go to .github/hooks/ to match hooks.json paths
   }
 
   rootInstructionsFilename(): string {
