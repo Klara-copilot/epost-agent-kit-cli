@@ -63,7 +63,8 @@ export class KitPathResolver {
 
     // Build candidate paths
     const candidates = [
-      // 2. Sibling repo (dev mode - NEW separate repo structure)
+      // 2. Sibling repo (dev mode — both naming conventions)
+      resolve(process.cwd(), "..", "epost_agent_kit"),
       resolve(process.cwd(), "..", "epost-agent-kit"),
       // 3. Current working directory
       resolve(process.cwd()),

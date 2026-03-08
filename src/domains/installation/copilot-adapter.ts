@@ -7,11 +7,12 @@
  * Install:  .claude/ → .github/
  */
 
-import type { TargetAdapter, TransformResult } from "./target-adapter.js";
+import type { TargetAdapter, TransformResult, DroppedFeature } from "./target-adapter.js";
 import {
   parseFrontmatter,
   serializeFrontmatter,
 } from "./target-adapter.js";
+import type { CompatibilityWarning } from "./compatibility-report.js";
 
 // ── Mapping Tables ──
 
@@ -43,53 +44,17 @@ const DEFAULT_TOOLS = [
 
 const READONLY_TOOLS = ["readFile", "listDirectory", "textSearch", "fetch"];
 
-/** Agent workflow handoffs — generated from known agent relationships */
-const AGENT_HANDOFFS: Record<
-  string,
-  Array<{ label: string; agent: string; prompt: string }>
-> = {
-  "epost-architect": [
-    {
-      label: "Implement Plan",
-      agent: "epost-implementer",
-      prompt: "Implement the plan outlined above.",
-    },
-  ],
-  "epost-implementer": [
-    {
-      label: "Review Code",
-      agent: "epost-reviewer",
-      prompt: "Review the implementation for edge cases and quality.",
-    },
-  ],
-  "epost-reviewer": [
-    {
-      label: "Commit Changes",
-      agent: "epost-git-manager",
-      prompt: "Stage and commit the reviewed changes.",
-    },
-  ],
-  "epost-debugger": [
-    {
-      label: "Run Tests",
-      agent: "epost-tester",
-      prompt: "Verify the fix with relevant tests.",
-    },
-  ],
-  "epost-tester": [
-    {
-      label: "Commit",
-      agent: "epost-git-manager",
-      prompt: "Commit the passing changes.",
-    },
-  ],
-};
-
 // ── Adapter ──
 
 export class CopilotAdapter implements TargetAdapter {
   readonly name = "vscode" as const;
   readonly installDir = ".github";
+
+  private readonly _warnings: CompatibilityWarning[] = [];
+
+  getWarnings(): CompatibilityWarning[] {
+    return [...this._warnings];
+  }
 
   transformAgent(content: string, filename: string): TransformResult {
     const { frontmatter: fm, body } = parseFrontmatter(content);
@@ -108,9 +73,37 @@ export class CopilotAdapter implements TargetAdapter {
 
     newFm.tools = this.buildToolsArray(fm);
 
-    const agentName = String(fm.name || filename.replace(/\.md$/, ""));
-    if (AGENT_HANDOFFS[agentName]) {
-      newFm.handoffs = AGENT_HANDOFFS[agentName];
+    if (Array.isArray(fm.handoffs) && fm.handoffs.length > 0) {
+      newFm.handoffs = fm.handoffs;
+    }
+
+    // Warn on dropped agent fields
+    if (fm.color) {
+      this._warnings.push({
+        severity: "low",
+        category: "agents",
+        feature: `color: ${fm.color}`,
+        source: filename,
+        reason: "VS Code agent files do not support a color field",
+      });
+    }
+    if (fm.skills) {
+      this._warnings.push({
+        severity: "medium",
+        category: "agents",
+        feature: `skills: ${Array.isArray(fm.skills) ? (fm.skills as string[]).join(", ") : String(fm.skills)}`,
+        source: filename,
+        reason: "VS Code agent files do not support a skills field — skill loading is manual",
+      });
+    }
+    if (fm.memory) {
+      this._warnings.push({
+        severity: "medium",
+        category: "agents",
+        feature: `memory: ${fm.memory}`,
+        source: filename,
+        reason: "VS Code agent files do not support a memory field",
+      });
     }
 
     return {
@@ -127,13 +120,14 @@ export class CopilotAdapter implements TargetAdapter {
 
   transformHooks(
     settingsJson: Record<string, unknown>,
-  ): { content: string; filename: string } | null {
+  ): { content: string; filename: string; droppedFeatures?: DroppedFeature[] } | null {
     const hooks = settingsJson.hooks as
       | Record<string, unknown[]>
       | undefined;
     if (!hooks) return null;
 
     const copilotHooks: Record<string, unknown[]> = {};
+    const droppedFeatures: DroppedFeature[] = [];
 
     for (const [eventName, groups] of Object.entries(hooks)) {
       if (!Array.isArray(groups)) continue;
@@ -141,10 +135,26 @@ export class CopilotAdapter implements TargetAdapter {
       const entries: unknown[] = [];
       for (const group of groups) {
         const g = group as Record<string, unknown>;
+        const matcher = g.matcher ? String(g.matcher) : undefined;
         const hookList = (g.hooks || [g]) as Array<Record<string, unknown>>;
 
         for (const hook of hookList) {
-          if (hook.type === "prompt") continue; // no Copilot equivalent
+          if (hook.type === "prompt") {
+            // Copilot has no prompt-type hook equivalent
+            droppedFeatures.push({
+              feature: "prompt-hook",
+              event: eventName,
+              reason: "Copilot hooks.json does not support prompt-type hooks",
+            });
+            this._warnings.push({
+              severity: "medium",
+              category: "hooks",
+              feature: `prompt-type hook`,
+              source: `${eventName} hook group`,
+              reason: "Copilot hooks.json does not support prompt-type hooks — this hook will not run",
+            });
+            continue;
+          }
 
           const entry: Record<string, unknown> = { type: "command" };
           if (hook.command) {
@@ -153,6 +163,25 @@ export class CopilotAdapter implements TargetAdapter {
           if (hook.timeout && typeof hook.timeout === "number") {
             entry.timeoutSec = Math.ceil(hook.timeout / 1000);
           }
+
+          // Copilot hooks.json has no matcher/pattern field — record as dropped
+          if (matcher && matcher !== "*") {
+            droppedFeatures.push({
+              feature: "hook-matcher",
+              event: eventName,
+              detail: matcher,
+              reason:
+                "Copilot hooks.json does not support tool matchers — hook fires unconditionally",
+            });
+            this._warnings.push({
+              severity: "high",
+              category: "hooks",
+              feature: `hook matcher: ${matcher}`,
+              source: `${eventName} hook group`,
+              reason: "Copilot hooks.json does not support tool matchers — hook fires unconditionally",
+            });
+          }
+
           entries.push(entry);
         }
       }
@@ -167,6 +196,7 @@ export class CopilotAdapter implements TargetAdapter {
     return {
       content: JSON.stringify({ version: 1, hooks: copilotHooks }, null, 2),
       filename: "hooks.json",
+      droppedFeatures: droppedFeatures.length > 0 ? droppedFeatures : undefined,
     };
   }
 

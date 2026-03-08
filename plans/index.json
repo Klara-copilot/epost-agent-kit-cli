@@ -1,0 +1,38 @@
+[
+  {
+    "date": "260211-2207",
+    "slug": "github-access-check-init",
+    "status": "unknown",
+    "phases": null,
+    "effort": null,
+    "title": "GitHub access check init",
+    "path": "plans/260211-2207-github-access-check-init/"
+  },
+  {
+    "date": "260307-1551",
+    "slug": "config-command",
+    "status": "draft",
+    "phases": 2,
+    "effort": "4h",
+    "title": "Config command and explicit config handling in init",
+    "path": "plans/260307-1551-config-command/"
+  },
+  {
+    "date": "260308-1424",
+    "slug": "adapter-improvements",
+    "status": "active",
+    "phases": 5,
+    "effort": "12h",
+    "title": "IDE adapter improvements: VS Code bug fixes, warnings, and handoff decoupling",
+    "path": "plans/260308-1424-adapter-improvements/"
+  },
+  {
+    "date": "260308-1504",
+    "slug": "adapter-open-points",
+    "status": "active",
+    "phases": 4,
+    "effort": "8h",
+    "title": "Adapter open points: CursorAdapter, .mdc rules, handoff graph",
+    "path": "plans/260308-1504-adapter-open-points/"
+  }
+]

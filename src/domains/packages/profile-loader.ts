@@ -207,6 +207,7 @@ function globToRegex(pattern: string): RegExp {
 export interface ProfileInfo {
   name: string;
   displayName: string;
+  description: string;
   teams: string[];
   packages: string[];
   optional: string[];
@@ -225,6 +226,7 @@ export function getProfileInfo(
   return {
     name,
     displayName: profile.display_name,
+    description: profile.description || "",
     teams: profile.teams || [],
     packages: profile.packages,
     optional: profile.optional || [],
@@ -238,6 +240,7 @@ export function listProfiles(profiles: ProfilesConfig): ProfileInfo[] {
   return Object.entries(profiles.profiles).map(([name, profile]) => ({
     name,
     displayName: profile.display_name,
+    description: profile.description || "",
     teams: profile.teams || [],
     packages: profile.packages,
     optional: profile.optional || [],

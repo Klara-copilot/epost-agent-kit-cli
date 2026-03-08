@@ -14,7 +14,7 @@ import {
   mkdir,
   rm,
 } from "node:fs/promises";
-import { select, confirm, checkbox } from "@inquirer/prompts";
+import { select, confirm, checkbox, Separator } from "@inquirer/prompts";
 import ora from "ora";
 import pc from "picocolors";
 import { logger } from "@/shared/logger.js";
@@ -40,12 +40,15 @@ import {
   loadProfiles,
 } from "@/domains/packages/package-resolver.js";
 import { mergeAndWriteSettings } from "@/domains/config/settings-merger.js";
+import { mergeAndWriteKitConfig } from "@/domains/config/kit-config-merger.js";
+import { mergeAndWriteIgnore } from "@/domains/config/ignore-merger.js";
 import {
   generateClaudeMd,
   collectSnippets,
   type ClaudeMdContext,
   type PackageSnippet,
 } from "@/domains/help/claude-md-generator.js";
+import { generateMdcFile } from "@/domains/installation/mdc-generator.js";
 import { detectProjectProfile, listProfiles, getProfileInfo } from "@/domains/packages/profile-loader.js";
 import { VERSION } from "@/domains/help/branding.js";
 import {
@@ -53,6 +56,7 @@ import {
   type TargetAdapter,
   type TargetName,
 } from "@/domains/installation/target-adapter.js";
+import { formatCompatibilityReport } from "@/domains/installation/compatibility-report.js";
 import type { InitOptions } from "@/types/commands.js";
 import type { FileOwnership } from "@/types/index.js";
 import {
@@ -121,6 +125,21 @@ async function getProfilesPath(source?: string | boolean): Promise<string> {
 
 // ─── Package-Based Installation ───
 
+/** Fallback descriptions for profiles that don't define a description field in profiles.yaml */
+const PROFILE_DESCRIPTIONS: Record<string, string> = {
+  "web-fullstack":   "Next.js web app + backend API + B2B domain modules",
+  "web-ui-lib":      "Next.js web app + component library + design tokens",
+  "ios-b2c":         "Swift/SwiftUI iOS app for consumer-facing features",
+  "ios-ui-lib":      "Swift/SwiftUI iOS app + component library + design tokens",
+  "android-b2c":     "Kotlin/Jetpack Compose Android consumer app",
+  "android-ui-lib":  "Kotlin/Jetpack Compose Android app + component library",
+  "mobile-b2c":      "iOS + Android consumer apps in one profile",
+  "backend-api":     "Java EE backend — WildFly, JAX-RS, PostgreSQL, MongoDB",
+  "cloud-architect": "Infrastructure + backend — Terraform, Cloud Build, GCP",
+  "kit-designer":    "Author and maintain agents, skills, and commands",
+  "full":            "Every platform — web, iOS, Android, backend, and kit tools",
+};
+
 async function runPackageInit(opts: InitOptions): Promise<void> {
   // Support --dir to install into a different directory
   if (opts.dir) {
@@ -131,7 +150,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     process.chdir(targetPath);
   }
 
-  const projectDir = resolve(process.cwd());
+  let projectDir = resolve(process.cwd());
   const projectName = basename(projectDir);
 
   // ── Step 1/7: Find packages ──
@@ -153,6 +172,30 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   }
 
   logger.debug(`Using packages from: ${packagesDir}`);
+
+  // ── Scope selection: project-local vs user-global ──
+  let installScope: "project" | "user" = "project";
+  if (!opts.yes && !opts.dir) {
+    const { homedir: getHomedir } = await import("node:os");
+    const scopeChoice = await select({
+      message: "Where should the agent kit be installed?",
+      choices: [
+        {
+          name: `This project  →  committed with your repo, only active here`,
+          value: "project",
+        },
+        {
+          name: `My user account  →  ~/.claude/  available in every project you open`,
+          value: "user",
+        },
+      ],
+      default: "project",
+    });
+    if (scopeChoice === "user") {
+      installScope = "user";
+      projectDir = getHomedir();
+    }
+  }
 
   const metadata = await readMetadata(projectDir);
   const isUpdate = !!metadata && !opts.fresh;
@@ -176,37 +219,76 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   let mergedProfilePackages: string[] | undefined;
 
   if (!profileName && !packagesList) {
-    logger.step(2, 7, "Selecting profiles");
+    logger.step(2, 7, "Selecting profile");
     const profiles = await loadProfiles(profilesPath);
 
     if (opts.yes) {
-      // CI mode: auto-detect and use detected profile
-      const detected = await detectProjectProfile(projectDir, profiles);
+      // CI mode: auto-detect and use detected profile (skip for user scope — no project to detect)
+      const detected = installScope === "project"
+        ? await detectProjectProfile(projectDir, profiles)
+        : null;
       if (detected) {
         profileName = detected.profile;
         logger.info(`Auto-detected profile: ${detected.displayName}`);
       }
     } else {
-      // Interactive: multi-select with auto-detected profile pre-checked
-      const detected = await detectProjectProfile(projectDir, profiles);
+      // Interactive: checkbox with descriptions, auto-detected profile pre-checked
+      const detected = installScope === "project"
+        ? await detectProjectProfile(projectDir, profiles)
+        : null;
       const allProfiles = listProfiles(profiles);
 
       if (detected) {
-        logger.info(`Detected project type: ${detected.displayName} (${detected.confidence} confidence)`);
+        logger.info(`Looks like a ${detected.displayName} project — pre-selected below.`);
       }
 
+      const CUSTOM = "__custom__";
       const selectedProfiles = await checkbox({
-        message: "Select profiles (space to toggle, enter to confirm):",
-        choices: allProfiles.map((p) => ({
-          name: `${p.displayName} (${p.packages.join(", ")})`,
-          value: p.name,
-          checked: detected ? p.name === detected.profile : false,
-        })),
+        message: "Which best describes this project?  (space to toggle, enter to confirm)",
+        pageSize: 12,
+        choices: [
+          ...allProfiles.map((p) => {
+            const desc = p.description || PROFILE_DESCRIPTIONS[p.name] || "";
+            const label = desc
+              ? `${p.displayName.padEnd(26)} ${pc.dim(desc)}`
+              : p.displayName;
+            return {
+              name: label,
+              value: p.name,
+              checked: detected ? p.name === detected.profile : false,
+            };
+          }),
+          new Separator(),
+          {
+            name: `Custom  ${pc.dim("→ let me pick packages manually")}`,
+            value: CUSTOM,
+          },
+        ],
       });
 
       if (selectedProfiles.length === 0) {
         logger.info("No profiles selected. Cancelled.");
         return;
+      } else if (selectedProfiles.includes(CUSTOM)) {
+        // Custom: show all available packages for manual selection
+        const allPkgManifests = await loadAllManifests(packagesDir);
+        const allPkgNames = [...allPkgManifests.keys()].sort();
+        const selectedPkgs = await checkbox({
+          message: "Select packages to install:",
+          pageSize: 12,
+          choices: allPkgNames.map((name) => {
+            const m = allPkgManifests.get(name);
+            const desc = m?.description || "";
+            const label = desc ? `${name.padEnd(24)} ${pc.dim(desc)}` : name;
+            return { name: label, value: name };
+          }),
+        });
+        if (selectedPkgs.length === 0) {
+          logger.info("No packages selected. Cancelled.");
+          return;
+        }
+        mergedProfilePackages = selectedPkgs;
+        profileName = "(custom)";
       } else if (selectedProfiles.length === 1) {
         profileName = selectedProfiles[0];
       } else {
@@ -238,50 +320,44 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     `Resolved ${resolved.packages.length} packages: ${resolved.packages.join(", ")}`,
   );
 
-  // Show recommendations
-  if (resolved.recommended.length > 0 && !opts.yes) {
-    logger.info(`\nRecommended packages: ${resolved.recommended.join(", ")}`);
-    const addRecommended = await confirm({
-      message: "Include recommended packages?",
-      default: false,
+  // ── Step 4/7: Add-ons ──
+  // Merge recommended (pre-checked) + optional (unchecked) into one unified step
+  const recommendedSet = new Set(resolved.recommended);
+  const allAddons = [
+    ...resolved.recommended,
+    ...resolved.optional.filter((n) => !recommendedSet.has(n)),
+  ];
+
+  if (allAddons.length > 0 && !opts.yes) {
+    logger.step(4, 7, "Add-ons");
+    // Load manifests for descriptions (reads local YAML cache)
+    const addonManifests = await loadAllManifests(packagesDir);
+    const selectedAddons = await checkbox({
+      message: "Add optional packages?  (pre-checked = recommended for your profile)",
+      pageSize: 8,
+      choices: allAddons.map((name) => {
+        const manifest = addonManifests.get(name);
+        const desc = manifest?.description || "";
+        const label = desc ? `${name.padEnd(24)} ${pc.dim(desc)}` : name;
+        return { name: label, value: name, checked: recommendedSet.has(name) };
+      }),
     });
-    if (addRecommended) {
-      // Re-resolve with recommendations
+
+    if (selectedAddons.length > 0) {
       const reResolved = await resolvePackages({
         packagesDir,
         profilesPath,
-        profile: profileName,
-        packages: [...resolved.packages, ...resolved.recommended],
-        includeOptional: optionalList,
+        profile: mergedProfilePackages ? undefined : profileName,
+        packages: mergedProfilePackages
+          ? [...mergedProfilePackages, ...selectedAddons]
+          : [...resolved.packages, ...selectedAddons],
         exclude: excludeList,
       });
       resolved.packages.length = 0;
       resolved.packages.push(...reResolved.packages);
     }
-  }
-
-  // ── Step 4/7: Select options ──
-  logger.step(4, 7, "Selecting options");
-  if (resolved.optional.length > 0 && !opts.yes) {
-    const selectedOptional = await checkbox({
-      message: "Select optional packages to include:",
-      choices: resolved.optional.map((name) => ({
-        name,
-        value: name,
-      })),
-    });
-
-    if (selectedOptional.length > 0) {
-      const reResolved = await resolvePackages({
-        packagesDir,
-        profilesPath,
-        profile: profileName,
-        packages: [...resolved.packages, ...selectedOptional],
-        exclude: excludeList,
-      });
-      resolved.packages.length = 0;
-      resolved.packages.push(...reResolved.packages);
-    }
+  } else {
+    logger.step(4, 7, "Add-ons");
   }
 
   // ── Select IDE/editor ──
@@ -300,20 +376,36 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   if (!opts.target && !opts.yes) {
     logger.step(5, 7, "Selecting editor");
     target = await select({
-      message: "Which editor/IDE are you using?",
+      message: "Which editor are you using?",
       choices: [
-        { name: "Claude Code", value: "claude" as const },
-        { name: "Cursor", value: "cursor" as const },
-        { name: "VS Code (GitHub Copilot)", value: "vscode" as const },
+        { name: `Claude Code            → .claude/`, value: "claude" as const },
+        { name: `Cursor                 → .cursor/`, value: "cursor" as const },
+        { name: `VS Code (Copilot)      → .github/`, value: "vscode" as const },
       ],
       default: target,
     });
+    // Warn: user-scope + VS Code writes to ~/.github/ which is unusual
+    if (installScope === "user" && target === "vscode") {
+      logger.warn("User-scope install with VS Code writes to ~/.github/ — consider project scope instead.");
+    }
   }
 
   // Create adapter — drives install dir, file transforms, and hook format
   const adapter = await createTargetAdapter(target);
   const installDirName = adapter.installDir;
   const installDir = join(projectDir, installDirName);
+
+  // Phase 5 — dual-target detection: warn when VS Code install coexists with .claude/
+  // VS Code Copilot natively reads .claude/agents/ AND .github/agents/ simultaneously.
+  // This means agents installed here will appear twice in VS Code's agent picker.
+  if (target === "vscode" && await dirExists(join(projectDir, ".claude", "agents"))) {
+    logger.warn(
+      "Dual-target detected: .claude/agents/ already exists.\n" +
+      "  VS Code Copilot reads BOTH .claude/agents/ and .github/agents/ natively.\n" +
+      "  Agents installed to .github/ will appear alongside .claude/ agents in VS Code.\n" +
+      "  This is expected if you use both Claude Code and VS Code Copilot.",
+    );
+  }
 
   // Load manifests for install
   const manifests = await loadAllManifests(packagesDir);
@@ -348,12 +440,31 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     return;
   }
 
-  // Confirm
+  // Preview + confirm
   if (!opts.yes) {
-    logger.info(
-      `\nWill install ${resolved.packages.length} packages into ${installDirName}/`,
-    );
-    const proceed = await confirm({ message: "Proceed?", default: true });
+    const scopeLabel = installScope === "user"
+      ? `~/${installDirName}/  (global)`
+      : `${projectName}/${installDirName}/`;
+    const allAgents   = pkgSummaries.flatMap((s) => manifests.get(s.name)?.provides.agents   ?? []);
+    const allSkills   = pkgSummaries.flatMap((s) => manifests.get(s.name)?.provides.skills   ?? []);
+    const allCommands = pkgSummaries.flatMap((s) => manifests.get(s.name)?.provides.commands ?? []);
+    const truncate = (arr: string[], max = 4) =>
+      arr.length <= max ? arr.join(", ") : `${arr.slice(0, max).join(", ")}  (+${arr.length - max} more)`;
+
+    const previewContent = [
+      keyValue([
+        ["Profile", profileName || "(custom)"],
+        ["Target ", `${target === "claude" ? "Claude Code" : target === "cursor" ? "Cursor" : "VS Code"}  →  ${scopeLabel}`],
+      ], { indent: 0 }),
+      "",
+      "You'll get",
+      ...(allAgents.length   ? [`  ${pc.cyan("agents   ")}  ${truncate(allAgents)}`]   : []),
+      ...(allSkills.length   ? [`  ${pc.cyan("skills   ")}  ${truncate(allSkills, 5)}`] : []),
+      ...(allCommands.length ? [`  ${pc.cyan("commands ")}  ${truncate(allCommands)}`] : []),
+    ].join("\n");
+
+    console.log("\n" + box(previewContent, { title: "Ready to install" }));
+    const proceed = await confirm({ message: "Install now?", default: true });
     if (!proceed) {
       logger.info("Cancelled");
       return;
@@ -385,6 +496,8 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     dir: string;
     strategy: "base" | "merge" | "skip";
   }> = [];
+  const kitConfigPackages: Array<{ name: string; dir: string }> = [];
+  const ignorePackages: Array<{ name: string; dir: string }> = [];
   const snippetPackages: Array<{
     name: string;
     dir: string;
@@ -409,8 +522,10 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
       // Handle single file mapping (e.g., "settings.json: settings.json")
       if (!srcSubDir.endsWith("/")) {
         if (await fileExists(srcPath)) {
-          // Settings files handled separately
+          // Config files handled separately (merged after package loop)
           if (srcSubDir === "settings.json") continue;
+          if (srcSubDir === ".epost-kit.json") continue;
+          if (srcSubDir === ".epost-ignore") continue;
           await mkdir(join(destPath, ".."), { recursive: true });
           await copyFile(srcPath, destPath);
 
@@ -485,6 +600,10 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
       dir: pkgDir,
       strategy: manifest.settings_strategy,
     });
+
+    // Track kit config files for merge
+    kitConfigPackages.push({ name: pkgName, dir: pkgDir });
+    ignorePackages.push({ name: pkgName, dir: pkgDir });
 
     // Track snippets
     if (manifest.claude_snippet) {
@@ -613,6 +732,46 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     );
     settingsSpinner.succeed(`Settings merged from ${settingsSources.length} packages`);
 
+    // Merge .epost-kit.json
+    const kitConfigSpinner = ora("Merging kit config...").start();
+    const kitConfigOutput = join(installDir, ".epost-kit.json");
+    const { sources: kitConfigSources } = await mergeAndWriteKitConfig(kitConfigPackages, kitConfigOutput);
+    if (kitConfigSources.length > 0) {
+      const kitConfigRelPath = join(installDirName, ".epost-kit.json");
+      const kitConfigChecksum = await hashFile(kitConfigOutput);
+      allFiles[kitConfigRelPath] = {
+        path: kitConfigRelPath,
+        checksum: kitConfigChecksum,
+        installedAt: new Date().toISOString(),
+        version: "1.0.0",
+        modified: false,
+        package: kitConfigSources[0],
+      };
+      kitConfigSpinner.succeed(`Kit config merged from ${kitConfigSources.length} packages`);
+    } else {
+      kitConfigSpinner.warn("No kit config found");
+    }
+
+    // Merge .epost-ignore
+    const ignoreSpinner = ora("Merging ignore patterns...").start();
+    const ignoreOutput = join(installDir, ".epost-ignore");
+    const { sources: ignoreSources } = await mergeAndWriteIgnore(ignorePackages, ignoreOutput);
+    if (ignoreSources.length > 0) {
+      const ignoreRelPath = join(installDirName, ".epost-ignore");
+      const ignoreChecksum = await hashFile(ignoreOutput);
+      allFiles[ignoreRelPath] = {
+        path: ignoreRelPath,
+        checksum: ignoreChecksum,
+        installedAt: new Date().toISOString(),
+        version: "1.0.0",
+        modified: false,
+        package: ignoreSources[0],
+      };
+      ignoreSpinner.succeed(`Ignore patterns merged from ${ignoreSources.length} packages`);
+    } else {
+      ignoreSpinner.warn("No ignore patterns found");
+    }
+
     // Generate CLAUDE.md at project root
     const claudeSpinner = ora("Generating CLAUDE.md...").start();
     const templatesDir = await kitPaths.getTemplatesDir();
@@ -626,6 +785,37 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
       join(projectDir, "CLAUDE.md"),
     );
     claudeSpinner.succeed("CLAUDE.md generated");
+
+    // Generate .cursor/rules/epost-kit.mdc for Cursor target
+    if (target === "cursor") {
+      const mdcSpinner = ora("Generating .cursor/rules/epost-kit.mdc...").start();
+      const rulesDir = join(installDir, "rules");
+      await mkdir(rulesDir, { recursive: true });
+      await generateMdcFile(snippets, join(rulesDir, "epost-kit.mdc"));
+      const mdcRelPath = join(".cursor", "rules", "epost-kit.mdc");
+      allFiles[mdcRelPath] = {
+        path: mdcRelPath,
+        checksum: "",
+        installedAt: new Date().toISOString(),
+        version: "generated",
+        modified: false,
+        package: "core",
+      };
+      mdcSpinner.succeed(".cursor/rules/epost-kit.mdc generated");
+    }
+
+    // Copy GEMINI.md to project root (Gemini CLI system prompt — only if not present)
+    const kitRoot = await kitPaths.resolve().then((p) => p.root).catch(() => null);
+    if (kitRoot) {
+      const geminiMdSrc = join(kitRoot, "packages", "core", "assets", "GEMINI.md");
+      const geminiMdDest = join(projectDir, "GEMINI.md");
+      if (await fileExists(geminiMdSrc) && !(await fileExists(geminiMdDest))) {
+        await copyFile(geminiMdSrc, geminiMdDest);
+        logger.info("GEMINI.md → created at project root (Gemini CLI system prompt)");
+      } else if (await fileExists(geminiMdDest)) {
+        logger.debug("GEMINI.md already exists — skipping (user may have customized it)");
+      }
+    }
   } else {
     // VS Code / GitHub Copilot: merge settings in-memory → transform to hooks.json
     const settingsSpinner = ora("Generating hooks configuration...").start();
@@ -647,6 +837,40 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     try { const { rm } = await import("node:fs/promises"); await rm(tmpPath); } catch { /* ignore */ }
     settingsSpinner.succeed("Hooks configuration generated");
 
+    // Merge .epost-kit.json and .epost-ignore for all targets
+    const kitConfigOutput2 = join(installDir, ".epost-kit.json");
+    const { sources: kitConfigSources2 } = await mergeAndWriteKitConfig(
+      kitConfigPackages,
+      kitConfigOutput2,
+      (content) => adapter.replacePathRefs(content),
+    );
+    if (kitConfigSources2.length > 0) {
+      const kitConfigRelPath2 = join(installDirName, ".epost-kit.json");
+      const kitConfigChecksum2 = await hashFile(kitConfigOutput2);
+      allFiles[kitConfigRelPath2] = {
+        path: kitConfigRelPath2,
+        checksum: kitConfigChecksum2,
+        installedAt: new Date().toISOString(),
+        version: "1.0.0",
+        modified: false,
+        package: kitConfigSources2[0],
+      };
+    }
+    const ignoreOutput2 = join(installDir, ".epost-ignore");
+    const { sources: ignoreSources2 } = await mergeAndWriteIgnore(ignorePackages, ignoreOutput2);
+    if (ignoreSources2.length > 0) {
+      const ignoreRelPath2 = join(installDirName, ".epost-ignore");
+      const ignoreChecksum2 = await hashFile(ignoreOutput2);
+      allFiles[ignoreRelPath2] = {
+        path: ignoreRelPath2,
+        checksum: ignoreChecksum2,
+        installedAt: new Date().toISOString(),
+        version: "1.0.0",
+        modified: false,
+        package: ignoreSources2[0],
+      };
+    }
+
     // Generate copilot-instructions.md inside install dir
     const copilotSpinner = ora("Generating copilot-instructions.md...").start();
     const instrPath = join(installDir, adapter.rootInstructionsFilename());
@@ -665,6 +889,16 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   });
   await writeMetadata(projectDir, newMetadata);
   metaSpinner.succeed("Metadata updated");
+
+  // Compatibility report (VS Code + Cursor — shows dropped/unsupported features)
+  const targetLabel = target === "cursor" ? "Cursor" : target === "vscode" ? "VS Code" : undefined;
+  const warnings = adapter.getWarnings();
+  if (targetLabel && warnings.length > 0) {
+    const compatReport = formatCompatibilityReport(warnings, targetLabel);
+    if (compatReport) {
+      console.log("\n" + compatReport);
+    }
+  }
 
   // Success summary
   console.log("\n");
@@ -686,8 +920,26 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
 
   const readyMsg =
     target === "vscode"
-      ? `Open VS Code → Copilot Chat → type ${pc.bold("@")} to discover agents.\nType ${pc.bold("/")} to discover all available skills.`
-      : `Run ${pc.bold("claude")} to activate your AI assistant.\nType ${pc.bold("/")} to discover all available commands.`;
+      ? [
+          `Open VS Code → Copilot Chat → type ${pc.bold("@")} to discover agents.`,
+          ``,
+          `Try these:`,
+          `  ${pc.cyan("/cook")}   implement a feature`,
+          `  ${pc.cyan("/fix")}    debug an error`,
+          `  ${pc.cyan("/plan")}   design before you build`,
+          ``,
+          `Customize:  ${pc.bold("epost-kit config")}`,
+        ].join("\n")
+      : [
+          `Run ${pc.bold("claude")} to start.`,
+          ``,
+          `Try these commands:`,
+          `  ${pc.cyan("/cook")}   implement a feature`,
+          `  ${pc.cyan("/fix")}    debug an error`,
+          `  ${pc.cyan("/plan")}   design before you build`,
+          ``,
+          `Customize:  ${pc.bold("epost-kit config")}`,
+        ].join("\n");
   console.log(box(readyMsg, { title: "Ready" }));
 }
 

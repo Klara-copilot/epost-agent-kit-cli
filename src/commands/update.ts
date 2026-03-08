@@ -46,6 +46,12 @@ export async function runUpdate(opts: UpdateOptions): Promise<void> {
   logger.info(`  Last run : ${metadata.installedAt.split("T")[0]}\n`);
 
   // Import and run init with existing config — no prompts, clean reinstall
+  // Resolve source: explicit flag > persisted metadata source > none (GitHub download)
+  const resolvedSource = opts.source ?? metadata.source;
+  if (resolvedSource) {
+    logger.info(`  Source   : ${resolvedSource} (local dev mode)`);
+  }
+
   const { runInit } = await import("./init.js");
   await runInit({
     ...opts,
@@ -55,6 +61,6 @@ export async function runUpdate(opts: UpdateOptions): Promise<void> {
     packages: metadata.installedPackages?.join(","),
     target: metadata.target,
     dir: opts.dir,
-    // source: inherited from opts if set
+    source: resolvedSource,
   });
 }

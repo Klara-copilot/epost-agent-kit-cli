@@ -22,7 +22,7 @@ export interface InitOptions extends GlobalOptions {
   dir?: string;
   forceDownload?: boolean; // Skip cache, always download fresh release
   target?: "claude" | "cursor" | "vscode"; // IDE target override
-  source?: boolean; // Use source repo for package resolution (local dev mode)
+  source?: string | boolean; // Use source repo for package resolution (local dev mode); string = explicit path
 }
 
 export interface DoctorOptions extends GlobalOptions {
@@ -38,7 +38,7 @@ export interface VersionsOptions extends GlobalOptions {
 export interface UpdateOptions extends GlobalOptions {
   check?: boolean;
   dir?: string;
-  source?: boolean;
+  source?: string | boolean;
   forceDownload?: boolean;
 }
 
@@ -80,4 +80,27 @@ export interface DevWatcherOptions extends GlobalOptions {
   target?: string;
   profile?: string;
   force?: boolean;
+  source?: string; // Local kit source path (default: ../epost_agent_kit)
+}
+
+export interface ConfigOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface ConfigGetOptions extends ConfigOptions {
+  key: string;
+}
+
+export interface ConfigSetOptions extends ConfigOptions {
+  key: string;
+  value: string;
+}
+
+export interface ConfigIgnoreAddOptions extends ConfigOptions {
+  pattern: string;
+}
+
+export interface ConfigIgnoreRemoveOptions extends ConfigOptions {
+  pattern: string;
 }

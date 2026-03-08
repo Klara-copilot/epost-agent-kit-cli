@@ -32,6 +32,18 @@ export const ConfigSchema = z.object({
     root: z.string().optional(),
     shared_claude_md: z.boolean().default(true),
   }).optional(),
+  /** Skills configuration (research engine, etc.) */
+  skills: z.object({
+    research: z.object({
+      engine: z.enum(['gemini', 'perplexity', 'websearch']).default('websearch'),
+      gemini: z.object({
+        model: z.string().default('gemini-2.5-flash-preview-04-17'),
+      }).optional(),
+      perplexity: z.object({
+        model: z.enum(['sonar', 'sonar-pro']).default('sonar'),
+      }).optional(),
+    }).optional(),
+  }).optional(),
 });
 
 export type EpostConfig = z.infer<typeof ConfigSchema>;
@@ -73,6 +85,15 @@ export async function loadConfig(cwd?: string): Promise<EpostConfig> {
   }
   if (process.env.EPOST_KIT_PROFILE) {
     config.profile = process.env.EPOST_KIT_PROFILE;
+  }
+  if (process.env.EPOST_RESEARCH_ENGINE) {
+    config.skills = config.skills ?? {};
+    const eng = process.env.EPOST_RESEARCH_ENGINE as "websearch" | "gemini" | "perplexity";
+    if (!config.skills.research) {
+      config.skills.research = { engine: eng };
+    } else {
+      config.skills.research.engine = eng;
+    }
   }
 
   // Validate merged config

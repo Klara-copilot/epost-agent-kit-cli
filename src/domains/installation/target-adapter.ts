@@ -16,6 +16,20 @@ export interface TransformResult {
   filename: string;
 }
 
+/** A feature that could not be translated to the target IDE format */
+export interface DroppedFeature {
+  /** Category of dropped feature: 'hook-matcher' | 'prompt-hook' | etc. */
+  feature: string;
+  /** Hook event name (e.g., 'PostToolUse') */
+  event: string;
+  /** Optional detail (e.g., the original matcher string) */
+  detail?: string;
+  /** Human-readable reason */
+  reason: string;
+}
+
+export type { CompatibilityWarning, WarningSeverity, WarningCategory } from "./compatibility-report.js";
+
 // ── Interface ──
 
 export interface TargetAdapter {
@@ -31,10 +45,11 @@ export interface TargetAdapter {
   /**
    * Transform settings.json hooks → target hook format.
    * Returns null if target uses settings.json directly (claude/cursor).
+   * `droppedFeatures` is populated when features could not be translated.
    */
   transformHooks(
     settingsJson: Record<string, unknown>,
-  ): { content: string; filename: string } | null;
+  ): { content: string; filename: string; droppedFeatures?: DroppedFeature[] } | null;
 
   /** Whether this target uses settings.json as-is (true for claude/cursor). */
   usesSettingsJson(): boolean;
@@ -47,6 +62,12 @@ export interface TargetAdapter {
 
   /** Replace install dir path references in content (e.g., .claude/ → .github/) */
   replacePathRefs(content: string): string;
+
+  /**
+   * Returns all compatibility warnings collected during transforms.
+   * ClaudeAdapter always returns []. CopilotAdapter collects warnings as it transforms.
+   */
+  getWarnings(): import("./compatibility-report.js").CompatibilityWarning[];
 }
 
 // ── Factory ──
@@ -55,10 +76,13 @@ export async function createTargetAdapter(
   target: TargetName,
 ): Promise<TargetAdapter> {
   switch (target) {
-    case "claude":
-    case "cursor": {
+    case "claude": {
       const { ClaudeAdapter } = await import("./claude-adapter.js");
-      return new ClaudeAdapter(target);
+      return new ClaudeAdapter();
+    }
+    case "cursor": {
+      const { CursorAdapter } = await import("./cursor-adapter.js");
+      return new CursorAdapter();
     }
     case "vscode": {
       const { CopilotAdapter } = await import("./copilot-adapter.js");
@@ -83,13 +107,57 @@ export function parseFrontmatter(content: string): {
   const body = match[2];
   const frontmatter: Record<string, unknown> = {};
 
-  for (const line of raw.split("\n")) {
-    if (!line.trim() || line.trim().startsWith("#")) continue;
+  const lines = raw.split("\n");
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim() || line.trim().startsWith("#")) {
+      i++;
+      continue;
+    }
     const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) continue;
+    if (colonIdx === -1) {
+      i++;
+      continue;
+    }
 
     const key = line.substring(0, colonIdx).trim();
-    let value: unknown = line.substring(colonIdx + 1).trim();
+    const rawValue = line.substring(colonIdx + 1).trim();
+
+    // Nested list block: key with no inline value followed by indented `- ` items
+    if (rawValue === "" && i + 1 < lines.length && /^\s+-\s/.test(lines[i + 1])) {
+      i++;
+      const items: Record<string, unknown>[] = [];
+      while (i < lines.length && /^\s+-\s/.test(lines[i])) {
+        // Parse first field of the list item (e.g., `  - label: Foo`)
+        const itemObj: Record<string, unknown> = {};
+        const firstField = lines[i].replace(/^\s+-\s+/, "");
+        const firstColon = firstField.indexOf(":");
+        if (firstColon !== -1) {
+          const fk = firstField.substring(0, firstColon).trim();
+          const fv = firstField.substring(firstColon + 1).trim().replace(/^['"]|['"]$/g, "");
+          itemObj[fk] = fv;
+        }
+        i++;
+        // Parse continuation fields (same indent depth, no leading `-`)
+        while (i < lines.length && /^\s{4}/.test(lines[i]) && !/^\s+-\s/.test(lines[i])) {
+          const contField = lines[i].trim();
+          const contColon = contField.indexOf(":");
+          if (contColon !== -1) {
+            const ck = contField.substring(0, contColon).trim();
+            const cv = contField.substring(contColon + 1).trim().replace(/^['"]|['"]$/g, "");
+            itemObj[ck] = cv;
+          }
+          i++;
+        }
+        items.push(itemObj);
+      }
+      frontmatter[key] = items;
+      continue;
+    }
+
+    let value: unknown = rawValue;
 
     if (
       typeof value === "string" &&
@@ -110,6 +178,7 @@ export function parseFrontmatter(content: string): {
     }
 
     frontmatter[key] = value;
+    i++;
   }
 
   return { frontmatter, body, raw };

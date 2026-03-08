@@ -58,7 +58,7 @@ export function generateMetadata(
   target: 'claude' | 'cursor' | 'vscode',
   kitVersion: string,
   files: Record<string, FileOwnership>,
-  options?: { profile?: string; installedPackages?: string[] }
+  options?: { profile?: string; installedPackages?: string[]; source?: string }
 ): Metadata {
   return {
     cliVersion,
@@ -66,6 +66,7 @@ export function generateMetadata(
     kitVersion,
     profile: options?.profile,
     installedPackages: options?.installedPackages,
+    source: options?.source,
     installedAt: new Date().toISOString(),
     files
   };

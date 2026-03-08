@@ -34,6 +34,7 @@ export interface PackageManifest {
 
 export interface ProfileDefinition {
   display_name: string;
+  description?: string;
   teams?: string[];
   packages: string[];
   optional?: string[];

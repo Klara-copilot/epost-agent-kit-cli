@@ -48,6 +48,8 @@ export interface Metadata {
   profile?: string;
   /** List of installed package names */
   installedPackages?: string[];
+  /** Source path used during installation (local dev mode) */
+  source?: string;
   /** Installation timestamp */
   installedAt: string;
   /** Last update timestamp */

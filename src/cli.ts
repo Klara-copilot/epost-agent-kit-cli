@@ -254,6 +254,75 @@ cli
     await runDev({ ...cli.globalCommand.options, ...opts });
   });
 
+// Command: config - View and edit kit configuration
+cli
+  .command("config show", "Show current .epost-kit.json configuration")
+  .option("--dir <path>", "Target project directory")
+  .option("--json", "Output as JSON")
+  .action(async (opts: any) => {
+    const { runConfigShow } = await import("./commands/config.js");
+    await runConfigShow({ ...cli.globalCommand.options, ...opts });
+  });
+
+cli
+  .command("config get <key>", "Get a config value by dot-notation key (e.g. plan.dateFormat)")
+  .option("--dir <path>", "Target project directory")
+  .option("--json", "Output as JSON")
+  .action(async (key: any, opts: any) => {
+    const { runConfigGet } = await import("./commands/config.js");
+    await runConfigGet({ ...cli.globalCommand.options, ...opts, key });
+  });
+
+cli
+  .command("config set <key> <value>", "Set a config value by dot-notation key")
+  .option("--dir <path>", "Target project directory")
+  .action(async (key: any, value: any, opts: any) => {
+    const { runConfigSet } = await import("./commands/config.js");
+    await runConfigSet({ ...cli.globalCommand.options, ...opts, key, value });
+  });
+
+cli
+  .command("config reset", "Restore .epost-kit.json defaults from installed packages")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    const { runConfigReset } = await import("./commands/config.js");
+    await runConfigReset({ ...cli.globalCommand.options, ...opts });
+  });
+
+cli
+  .command("config ignore", "Show current .epost-ignore patterns")
+  .option("--dir <path>", "Target project directory")
+  .option("--json", "Output as JSON")
+  .action(async (opts: any) => {
+    const { runConfigIgnore } = await import("./commands/config.js");
+    await runConfigIgnore({ ...cli.globalCommand.options, ...opts });
+  });
+
+cli
+  .command("config ignore add <pattern>", "Append a pattern to .epost-ignore")
+  .option("--dir <path>", "Target project directory")
+  .action(async (pattern: any, opts: any) => {
+    const { runConfigIgnoreAdd } = await import("./commands/config.js");
+    await runConfigIgnoreAdd({ ...cli.globalCommand.options, ...opts, pattern });
+  });
+
+cli
+  .command("config ignore remove <pattern>", "Remove a pattern from .epost-ignore")
+  .option("--dir <path>", "Target project directory")
+  .action(async (pattern: any, opts: any) => {
+    const { runConfigIgnoreRemove } = await import("./commands/config.js");
+    await runConfigIgnoreRemove({ ...cli.globalCommand.options, ...opts, pattern });
+  });
+
+// Bare `config` — interactive TUI (registered after subcommands so preprocessor routes correctly)
+cli
+  .command("config", "Interactively view and edit kit configuration")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    const { runConfigInteractive } = await import("./commands/config.js");
+    await runConfigInteractive({ ...cli.globalCommand.options, ...opts });
+  });
+
 // Command: lint - Validate references
 cli
   .command("lint", "Validate references across installed agent/skill/command files")
@@ -291,6 +360,31 @@ cli
     const { runVerify } = await import("./commands/verify.js");
     await runVerify({ ...cli.globalCommand.options, ...opts });
   });
+
+// ─── Multi-word command argv preprocessor ────────────────────────────────────
+
+/**
+ * cac only matches a command when args[0] equals the full command name.
+ * For multi-word commands like "config show", argv arrives as ['config', 'show'].
+ * This joins those tokens into a single arg so cac can match correctly.
+ */
+function preprocessArgv(argv: string[], commands: Array<{ name: string }>): string[] {
+  const args = argv.slice(2); // everything after 'node <script>'
+
+  // Extract the literal prefix (before any <arg> or [arg] placeholders)
+  const prefixes = commands
+    .map((c) => c.name.split(/[<[]/)[0].trim())
+    .filter((prefix) => prefix.includes(" "))
+    .sort((a, b) => b.split(" ").length - a.split(" ").length); // longest first
+
+  for (const prefix of prefixes) {
+    const parts = prefix.split(" ");
+    if (parts.every((part, i) => args[i] === part)) {
+      return [...argv.slice(0, 2), prefix, ...args.slice(parts.length)];
+    }
+  }
+  return argv;
+}
 
 // ─── Go-style command suggestions ───
 
@@ -349,7 +443,7 @@ process.on("unhandledRejection", (error) => {
 });
 
 try {
-  cli.parse();
+  cli.parse(preprocessArgv(process.argv, cli.commands));
 } catch (err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
   if (msg.includes('Unknown command')) {

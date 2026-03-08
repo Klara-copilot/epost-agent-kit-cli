@@ -1,20 +1,16 @@
 /**
- * Claude/Cursor Adapter — pass-through implementation
+ * Claude Code Adapter — pass-through implementation
  *
- * No transformation needed: source format IS the target format.
- * Claude Code uses .claude/, Cursor uses .cursor/ — same file structure.
+ * Claude Code is the source format, so no transformation is needed.
+ * Files are installed to .claude/ as-is.
  */
 
-import type { TargetAdapter, TargetName, TransformResult } from "./target-adapter.js";
+import type { TargetAdapter, TransformResult } from "./target-adapter.js";
+import type { CompatibilityWarning } from "./compatibility-report.js";
 
 export class ClaudeAdapter implements TargetAdapter {
-  readonly name: TargetName;
-  readonly installDir: string;
-
-  constructor(target: TargetName = "claude") {
-    this.name = target;
-    this.installDir = target === "cursor" ? ".cursor" : ".claude";
-  }
+  readonly name = "claude" as const;
+  readonly installDir = ".claude";
 
   transformAgent(content: string, filename: string): TransformResult {
     return { content, filename };
@@ -41,6 +37,10 @@ export class ClaudeAdapter implements TargetAdapter {
   }
 
   replacePathRefs(content: string): string {
-    return content; // no replacement needed
+    return content;
+  }
+
+  getWarnings(): CompatibilityWarning[] {
+    return [];
   }
 }
