@@ -218,6 +218,19 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   let profileName = opts.profile;
   let mergedProfilePackages: string[] | undefined;
 
+  // Handle combined profiles stored as "profile-a+profile-b" (from multi-profile selection)
+  if (profileName && profileName.includes("+") && profileName !== "(custom)") {
+    const profilesForMerge = await loadProfiles(profilesPath);
+    const parts = profileName.split("+");
+    const pkgSet = new Set<string>();
+    for (const pName of parts) {
+      const pInfo = getProfileInfo(pName, profilesForMerge);
+      if (pInfo) pInfo.packages.forEach((pkg) => pkgSet.add(pkg));
+    }
+    mergedProfilePackages = [...pkgSet];
+    logger.debug(`Expanded combined profile "${profileName}" → ${mergedProfilePackages.join(", ")}`);
+  }
+
   if (!profileName && !packagesList) {
     logger.step(2, 7, "Selecting profile");
     const profiles = await loadProfiles(profilesPath);
