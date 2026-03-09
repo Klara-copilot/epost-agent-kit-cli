@@ -196,9 +196,12 @@ export function serializeFrontmatter(
     if (Array.isArray(value)) {
       // Arrays of objects (e.g. handoffs) are serialized by the special block below
       if (value.length > 0 && typeof value[0] === "object") continue;
-      const items = value.map((v) =>
-        typeof v === "string" ? `'${v}'` : String(v),
-      );
+      // Use unquoted identifiers for simple alphanumeric values (e.g. VS Code tool names)
+      // Use single quotes only when value contains special YAML characters
+      const items = value.map((v) => {
+        if (typeof v !== "string") return String(v);
+        return /^[a-zA-Z0-9_-]+$/.test(v) ? v : `'${v}'`;
+      });
       lines.push(`${key}: [${items.join(", ")}]`);
     } else if (typeof value === "object") {
       continue; // non-array objects skipped

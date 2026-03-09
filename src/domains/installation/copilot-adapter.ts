@@ -22,27 +22,22 @@ const MODEL_MAP: Record<string, string> = {
   opus: "Claude Opus 4.6",
 };
 
+// VS Code Copilot tool names (unquoted identifiers in YAML)
+// Correct names verified March 2026: execute, read, edit, search, web
 const TOOL_MAP: Record<string, string> = {
-  Read: "readFile",
-  Write: "editFiles",
-  Edit: "editFiles",
-  Bash: "runInTerminal",
-  Grep: "textSearch",
-  Glob: "listDirectory",
-  WebFetch: "fetch",
-  WebSearch: "fetch",
+  Read: "read",
+  Write: "edit",
+  Edit: "edit",
+  Bash: "execute",
+  Grep: "search",
+  Glob: "read",
+  WebFetch: "web",
+  WebSearch: "web",
 };
 
-const DEFAULT_TOOLS = [
-  "readFile",
-  "editFiles",
-  "runInTerminal",
-  "listDirectory",
-  "textSearch",
-  "fetch",
-];
+const DEFAULT_TOOLS = ["execute", "read", "edit", "search", "web"];
 
-const READONLY_TOOLS = ["readFile", "listDirectory", "textSearch", "fetch"];
+const READONLY_TOOLS = ["read", "search", "web"];
 
 // ── Adapter ──
 
