@@ -517,6 +517,18 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     layer: number;
     snippetFile?: string;
   }> = [];
+  const copilotSnippetPackages: Array<{
+    name: string;
+    dir: string;
+    layer: number;
+    snippetFile?: string;
+  }> = [];
+  const cursorSnippetPackages: Array<{
+    name: string;
+    dir: string;
+    layer: number;
+    snippetFile?: string;
+  }> = [];
 
   for (const pkgName of resolved.packages) {
     const manifest = manifests.get(pkgName);
@@ -618,13 +630,33 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     kitConfigPackages.push({ name: pkgName, dir: pkgDir });
     ignorePackages.push({ name: pkgName, dir: pkgDir });
 
-    // Track snippets
+    // Track snippets (separate for Claude vs Copilot)
     if (manifest.claude_snippet) {
       snippetPackages.push({
         name: pkgName,
         dir: pkgDir,
         layer: manifest.layer,
         snippetFile: manifest.claude_snippet,
+      });
+    }
+    // Copilot: use copilot_snippet if available, fall back to claude_snippet
+    const copilotSnippetFile = manifest.copilot_snippet || manifest.claude_snippet;
+    if (copilotSnippetFile) {
+      copilotSnippetPackages.push({
+        name: pkgName,
+        dir: pkgDir,
+        layer: manifest.layer,
+        snippetFile: copilotSnippetFile,
+      });
+    }
+    // Cursor: use cursor_snippet if available, fall back to claude_snippet
+    const cursorSnippetFile = manifest.cursor_snippet || manifest.claude_snippet;
+    if (cursorSnippetFile) {
+      cursorSnippetPackages.push({
+        name: pkgName,
+        dir: pkgDir,
+        layer: manifest.layer,
+        snippetFile: cursorSnippetFile,
       });
     }
 
@@ -706,8 +738,10 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     skillIndexSpinner.warn("No skills directory found");
   }
 
-  // Collect snippets + platform info (used by both claude and copilot instruction generators)
+  // Collect snippets (separate per target: Claude, Copilot, Cursor)
   const snippets = await collectSnippets(snippetPackages);
+  const copilotSnippets = await collectSnippets(copilotSnippetPackages);
+  const cursorSnippets = await collectSnippets(cursorSnippetPackages);
   const platforms = new Set<string>();
   for (const pkgName of resolved.packages) {
     const manifest = manifests.get(pkgName);
@@ -804,7 +838,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
       const mdcSpinner = ora("Generating .cursor/rules/epost-kit.mdc...").start();
       const rulesDir = join(installDir, "rules");
       await mkdir(rulesDir, { recursive: true });
-      await generateMdcFile(snippets, join(rulesDir, "epost-kit.mdc"));
+      await generateMdcFile(cursorSnippets, join(rulesDir, "epost-kit.mdc"));
       const mdcRelPath = join(".cursor", "rules", "epost-kit.mdc");
       allFiles[mdcRelPath] = {
         path: mdcRelPath,
@@ -887,7 +921,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     // Generate copilot-instructions.md inside install dir
     const copilotSpinner = ora("Generating copilot-instructions.md...").start();
     const instrPath = join(installDir, adapter.rootInstructionsFilename());
-    await generateCopilotInstructions(instrContext, snippets, instrPath);
+    await generateCopilotInstructions(instrContext, copilotSnippets, instrPath);
     copilotSpinner.succeed("copilot-instructions.md generated");
   }
 

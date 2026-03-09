@@ -25,6 +25,8 @@ export interface PackageManifest {
   files: Record<string, string>;
   settings_strategy: "base" | "merge" | "skip";
   claude_snippet?: string;
+  copilot_snippet?: string;
+  cursor_snippet?: string;
   renames?: {
     skills?: Record<string, string>;
     agents?: Record<string, string>;
@@ -208,6 +210,8 @@ export async function loadPackageManifest(
       files: parsed.files || {},
       settings_strategy: parsed.settings_strategy || "merge",
       claude_snippet: parsed.claude_snippet,
+      copilot_snippet: parsed.copilot_snippet,
+      cursor_snippet: parsed.cursor_snippet,
     };
   } catch (error) {
     throw new ConfigError(
