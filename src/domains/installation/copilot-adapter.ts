@@ -33,11 +33,15 @@ const TOOL_MAP: Record<string, string> = {
   Glob: "read",
   WebFetch: "web",
   WebSearch: "web",
+  Browser: "browser",
+  Agent: "agent",
 };
 
-const DEFAULT_TOOLS = ["execute", "read", "edit", "search", "web"];
+// All VS Code Copilot built-in tools (verified March 2026)
+const DEFAULT_TOOLS = ["agent", "browser", "edit", "execute", "read", "search", "todo", "vscode", "web"];
 
-const READONLY_TOOLS = ["read", "search", "web"];
+// Read-only subset for permissionMode: plan agents
+const READONLY_TOOLS = ["agent", "browser", "read", "search", "todo", "web"];
 
 // ── Adapter ──
 
