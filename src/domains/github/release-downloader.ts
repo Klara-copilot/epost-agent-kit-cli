@@ -12,7 +12,7 @@ import { logger } from '@/shared/logger.js';
 import { safeCopyDir, fileExists } from '@/shared/file-system.js';
 import { getCachedRelease, cacheRelease } from './release-cache.js';
 import { validateRelease } from './release-validator.js';
-import { fetchLatestRelease, downloadRelease } from './github-client.js';
+import { downloadRelease } from './github-client.js';
 
 export interface DownloadOptions {
   forceDownload?: boolean;
@@ -47,17 +47,16 @@ export async function downloadLatestRelease(
   const spinner = ora('Fetching release info...').start();
 
   try {
-    // 1. Get latest release info using consolidated client
+    // 1. Build master branch tarball URL (always pull latest from master)
     const [owner, repoName] = repo.split('/');
-    const release = await fetchLatestRelease(owner, repoName);
-    const tarballUrl = release.tarball_url;
-    const releaseTag = release.tag_name;
+    const tarballUrl = `https://api.github.com/repos/${owner}/${repoName}/tarball/master`;
+    const releaseTag = 'master';
 
-    spinner.text = `Found release: ${releaseTag}`;
-    logger.debug(`Release tag: ${releaseTag}, tarball URL: ${tarballUrl}`);
+    spinner.text = 'Fetching latest from master branch...';
+    logger.debug(`Downloading master branch tarball: ${tarballUrl}`);
 
     // 2. Check cache first (unless force download)
-    const cacheKey = `${repo.replace('/', '-')}-${releaseTag}.tar.gz`;
+    const cacheKey = `${repo.replace('/', '-')}-master.tar.gz`;
 
     if (!options.forceDownload) {
       const cachedPath = await getCachedRelease(cacheKey);
@@ -88,7 +87,7 @@ export async function downloadLatestRelease(
     const extractDir = join(tempDir, 'extracted');
     await extractTarball(tarballPath, extractDir);
 
-    spinner.succeed('Release downloaded and extracted');
+    spinner.succeed('master branch downloaded and extracted');
 
     // 5. Cache the tarball
     await cacheRelease(cacheKey, tarballPath, releaseTag);
