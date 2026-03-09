@@ -125,12 +125,13 @@ export async function copyPackagesAndProfiles(
 
   spinner.succeed('Release structure validated');
 
-  // 2. Copy packages directory
+  // 2. Copy packages directory (wipe first so removed packages/agents don't linger)
   spinner.start('Copying packages...');
   const packagesSource = join(extractedDir, 'packages');
 
-  // For GitHub-only distribution, use a global packages directory
   const globalPackagesDir = join(homedir(), '.epost-kit', 'packages');
+  // Clean wipe before copy so deleted source files don't persist across updates
+  await rm(globalPackagesDir, { recursive: true, force: true });
   await mkdir(globalPackagesDir, { recursive: true });
 
   await safeCopyDir(packagesSource, globalPackagesDir);
