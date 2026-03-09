@@ -129,8 +129,29 @@ export class CopilotAdapter implements TargetAdapter {
     const copilotHooks: Record<string, unknown[]> = {};
     const droppedFeatures: DroppedFeature[] = [];
 
+    // VS Code Copilot only supports SessionStart and Stop (March 2026)
+    // All other events (UserPromptSubmit, PreToolUse, PostToolUse, SubagentStart, SubagentStop)
+    // are Claude Code / Copilot CLI extensions and silently fail in VS Code.
+    const VSCODE_SUPPORTED_EVENTS = new Set(["SessionStart", "Stop"]);
+
     for (const [eventName, groups] of Object.entries(hooks)) {
       if (!Array.isArray(groups)) continue;
+
+      if (!VSCODE_SUPPORTED_EVENTS.has(eventName)) {
+        droppedFeatures.push({
+          feature: "unsupported-hook-event",
+          event: eventName,
+          reason: `VS Code Copilot does not support the ${eventName} hook event — only SessionStart and Stop are supported`,
+        });
+        this._warnings.push({
+          severity: "medium",
+          category: "hooks",
+          feature: `hook event: ${eventName}`,
+          source: "settings.json",
+          reason: `VS Code Copilot only supports SessionStart and Stop hook events — ${eventName} will not fire`,
+        });
+        continue;
+      }
 
       const entries: unknown[] = [];
       for (const group of groups) {

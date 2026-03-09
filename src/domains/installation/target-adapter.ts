@@ -194,12 +194,14 @@ export function serializeFrontmatter(
     if (value === undefined || value === null) continue;
 
     if (Array.isArray(value)) {
+      // Arrays of objects (e.g. handoffs) are serialized by the special block below
+      if (value.length > 0 && typeof value[0] === "object") continue;
       const items = value.map((v) =>
         typeof v === "string" ? `'${v}'` : String(v),
       );
       lines.push(`${key}: [${items.join(", ")}]`);
     } else if (typeof value === "object") {
-      continue; // handoffs serialized separately below
+      continue; // non-array objects skipped
     } else if (typeof value === "string" && value.includes(":")) {
       lines.push(`${key}: '${value}'`);
     } else {
