@@ -2,20 +2,118 @@
 
 This file provides guidance to Claude Code when working with code in this repository.
 
-## Project Overview
 
-**Project**: epost-agent-kit-cli
-**Profile**: full
-**Platforms**: all, web, ios, android, backend, cloud
-**Agents**: 21 | **Skills**: 119 | **Commands**: 48
+## Project: epost-agent-kit-cli
+
+
+## Installed Profile: `full`
+
+**Packages**: core, a11y, platform-web, platform-ios, platform-android, platform-backend, kit, design-system, domains
+
+**Installed by**: epost-kit v2.0.0 on 2026-03-18
+
+---
 
 ## Claude Code Agent System
 
-- **Agents**: `.claude/agents/`
-- **Commands**: `.claude/commands/`
-- **Skills**: `.claude/skills/`
+### Configuration
+- **Agents**: `.claude/agents/` — 15 agents
+- **Commands**: `.claude/commands/` — Slash commands
+- **Skills**: `.claude/skills/` — Passive knowledge
+
+
 
 ---
+
+
+## What This Is
+
+epost_agent_kit is a multi-agent development toolkit for Claude Code. Specialized agents load platform-specific skills on demand and follow shared orchestration rules. The main conversation is always the orchestrator — it dispatches agents via Agent tool and merges results.
+
+---
+
+## Routing
+
+On every user prompt, sense context before acting:
+1. Check git state (branch, staged/unstaged files)
+2. Detect platform from file extensions (`.tsx`→web, `.swift`→ios, `.kt`→android, `.java`→backend)
+3. Check for active plans in `./plans/`
+4. Route to best-fit agent based on intent + context
+
+### Prompt Classification
+
+- **Dev task** (action/problem/question about code) → route via intent table below
+- **Kit question** ("which agent", "list skills", "our conventions") → `epost-project-manager`
+- **External tech question** ("how does React...", "what is gRPC") → `epost-researcher`
+- **Conversational** (greetings, opinions, clarifications) → respond directly
+
+### Intent Map
+
+| Intent | Natural prompts (examples) | Routes To |
+|--------|---------------------------|-----------|
+| Build / Create | "add a button", "implement login", "make X work", "continue the plan" | `epost-fullstack-developer` via Agent tool |
+| Fix / Debug | "something is broken", "this crashes", "why does X happen", "it's not working" | `epost-debugger` via Agent tool |
+| Plan / Design | "how should we build X", "let's plan", "what's the approach for" | `epost-planner` via Agent tool |
+| Research | "how does X work", "best practices for", "compare A vs B" | `epost-researcher` via Agent tool |
+| Review / Audit | "check my code", "is this good", "review before merge", "audit this" | `epost-code-reviewer` via Agent tool |
+| Test | "add tests", "is this covered", "validate this works" | `epost-tester` via Agent tool |
+| Docs | "document this", "update the docs", "write a spec" | `epost-docs-manager` via Agent tool |
+| Git | "commit", "push", "create a PR", "ship it", "done" | `epost-git-manager` via Agent tool |
+| Onboard | "what is this project", "I'm new", "get started" | `/get-started` skill |
+
+**Fuzzy matching** — classify by verb type when no exact signal word:
+- Creation verbs (add, make, create, build, set up) → Build
+- Problem verbs (broken, wrong, failing, slow, crash) → Fix/Debug
+- Question verbs (how, why, what, should, compare) → Research or Plan
+- Quality verbs (check, review, improve, clean up, refactor, simplify) → Review
+- Still ambiguous → infer from git context (staged files → Review, active plan → Build, error in prompt → Fix)
+
+**Less common intents**: scaffold → `/bootstrap`, convert → `/convert`, journal → `epost-journal-writer`, MCP → `epost-mcp-manager`, design/UI → `epost-muji`
+
+### Routing Rules
+
+1. Explicit slash command → execute directly, skip routing
+2. TypeScript/build errors in context → route to Fix first
+3. Staged files → boost Review or Git intent
+4. Active plan exists → boost Build ("continue" → cook)
+5. Merge conflicts → suggest fix/resolve
+6. Ambiguous after context boost → ask user (max 1 question)
+7. All delegations follow `core/references/orchestration.md`
+
+---
+
+## Orchestration
+
+**Single intent** → spawn the matched agent directly via Agent tool.
+
+**Multi-intent** ("plan and build X", "research then implement") → spawn `epost-project-manager`, which decomposes and delegates sequentially.
+
+**Parallel work** (3+ independent tasks, cross-platform) → use `subagent-driven-development` skill from main context.
+
+**Subagent constraint**: Subagents cannot spawn further subagents. Multi-agent workflows must be orchestrated from the main conversation. Skills that need multi-agent dispatch must NOT use `context: fork`.
+
+**Hybrid audits** (klara-theme code): Orchestrated from main context via `/audit` skill. Dispatch muji (Template A+) first, then code-reviewer with muji's report. Never free-form prompt muji — use structured delegation templates from `audit/references/delegation-templates.md`.
+
+**Escalation**: 3 consecutive failures → surface findings to user. Ambiguous request → ask 1 question max.
+
+See `core/references/orchestration.md` for full protocol.
+
+---
+
+
+## Accessibility (WCAG 2.1 AA)
+
+### Agent
+- `epost-a11y-specialist` — Multi-platform accessibility orchestrator (iOS, Android, Web)
+
+### Skills
+- `a11y` — Cross-platform WCAG 2.1 AA foundation (POUR, scoring)
+- `ios-a11y` — iOS (VoiceOver, UIKit-primary, SwiftUI) *(extends a11y)*
+- `android-a11y` — Android (Compose, Views/XML, TalkBack) *(extends a11y)*
+- `web-a11y` — Web (ARIA, keyboard, screen readers) *(extends web/\*)*
+
+---
+
 
 ## Web Platform
 
@@ -29,14 +127,17 @@ This file provides guidance to Claude Code when working with code in this reposi
 - **State**: Redux Toolkit + Redux Persist
 - **Containerization**: Docker + Docker Compose
 
-### Commands
-- `/web:cook` — Implement web features (Next.js, React, TypeScript)
-- `/web:test` — Run web tests (Jest, Playwright, RTL)
-
-### Agent
-- `epost-web-developer` — Web platform specialist for Next.js development
+### Skills
+- `web-frontend` — React components, hooks, Redux Toolkit dual-store, composition patterns
+- `web-nextjs` — Next.js 14 App Router, routing, middleware, server actions, performance
+- `web-api-routes` — FetchBuilder HTTP client, caller patterns, API constants
+- `web-i18n` — next-intl configuration, translation patterns, locale routing
+- `web-auth` — NextAuth + Keycloak, session management, feature switches
+- `web-testing` — Jest + RTL unit tests, Playwright E2E, test patterns
+- `web-modules` — B2B module integration
 
 ---
+
 
 ## iOS Platform
 
@@ -47,23 +148,13 @@ This file provides guidance to Claude Code when working with code in this reposi
 - **Testing**: XCTest, XCUITest
 - **Build**: Xcode, XcodeBuildMCP
 
-### Commands
-- `/ios:cook` — Implement iOS features (Swift, SwiftUI)
-- `/ios:test` — Run iOS unit and UI tests
-- `/ios:debug` — Debug crashes, concurrency, SwiftUI state
-- `/ios:simulator` — Manage iOS simulators
-- `/ios:a11y:audit` — Audit staged Swift changes for accessibility
-- `/ios:a11y:fix` — Fix a specific accessibility finding
-- `/ios:a11y:fix-batch` — Fix top N accessibility findings
-- `/ios:a11y:review-buttons` — Review buttons for WCAG compliance
-- `/ios:a11y:review-headings` — Review heading structure
-- `/ios:a11y:review-modals` — Review modal focus management
-
-### Agents
-- `epost-ios-developer` — iOS platform specialist
-- `epost-a11y-specialist` — iOS accessibility auditing and fixing (WCAG 2.1 AA)
+### Skills
+- `ios-development` — Swift 6, SwiftUI/UIKit patterns, Xcode builds
+- `ios-ui-lib` — iOS theme SwiftUI components and design tokens
+- `ios-rag` — iOS codebase vector search
 
 ---
+
 
 ## Android Platform
 
@@ -76,14 +167,12 @@ This file provides guidance to Claude Code when working with code in this reposi
 - **Testing**: JUnit, Espresso, Compose UI Testing
 - **Build**: Gradle (Kotlin DSL)
 
-### Commands
-- `/android:cook` — Implement Android features (Kotlin, Compose)
-- `/android:test` — Run Android unit and instrumented tests
-
-### Agent
-- `epost-android-developer` — Android platform specialist
+### Skills
+- `android-development` — Kotlin, Jetpack Compose, Hilt DI patterns
+- `android-ui-lib` — Android theme Compose components and design tokens
 
 ---
+
 
 ## Backend Platform
 
@@ -107,136 +196,65 @@ This file provides guidance to Claude Code when working with code in this reposi
 - `persistence.xml` for JPA configuration
 - Maven profiles for SonarQube analysis
 
-### Commands
-- `/backend:cook` — Implement backend features (Java EE, WildFly)
-- `/backend:test` — Run Maven tests (unit + integration via Arquillian)
-
-### Agent
-- `epost-backend-developer` — Java EE backend specialist
+### Skills
+- `backend-javaee` — Jakarta EE patterns, WildFly deployment, Maven builds
+- `backend-databases` — PostgreSQL + MongoDB persistence
 
 ---
 
-## UI/UX Design System (MUJI)
 
-### Agent
-- `epost-muji` — MUJI UI library agent with two flows: library development (Figma-to-code pipeline) and consumer guidance (component knowledge, integration patterns)
-
-### Design System Ownership
-MUJI team owns UI component libraries across all platforms:
-
-| Library | Platform | Source |
-|---------|----------|--------|
-| klara-theme | Web (React) | Storybook, Figma |
-| ios-theme | iOS (SwiftUI) | Figma |
-| android-theme | Android (Compose) | Figma |
-
-### Consumer Guidance
-- Component API reference (props, variants, code examples)
-- Design system guidelines (tokens, spacing, colors, typography)
-- Integration patterns (theme provider, composition, state management)
-- Audit consumer UI implementations against the design system
-- Contributing components back to the MUJI team
-
-### Library Development
-- `/docs:component <key>` — Document klara-theme components from Figma
-- `/design:fast` — Quick UI design implementation
-- Figma-to-code pipeline: plan-feature → implement-component → audit-ui → fix-findings → document-component
-- Figma MCP integration for design token extraction
+## Kit Authoring Tools
 
 ### Skills
-- `muji/klara-theme`, `muji/ios-theme`, `muji/android-theme` — Platform component knowledge
-- `muji/figma-variables` — Design token architecture (semantic → component → raw)
-- `web/klara-theme` — Component development pipeline
-- `web/figma-integration` — Figma MCP tool patterns
+- `kit-agents` — Agent ecosystem reference and naming conventions
+- `kit-agent-development` — Agent frontmatter, system prompts, triggering patterns
+- `kit-skill-development` — Skill authoring, progressive disclosure, validation
+- `kit-hooks` — Hook event types, I/O contract, creation workflow
+- `kit-cli` — epost-kit CLI development (Commander.js, TypeScript)
 
 ---
 
-## Cloud Architecture
 
-### Infrastructure
-- **Cloud Provider**: Google Cloud Platform (GCP)
-- **Artifacts**: GCP Artifact Registry (Maven)
-- **CI/CD**: Cloud Build
-- **Infrastructure as Code**: Terraform
+## Design System
 
 ### Agent
-- `epost-database-admin` — Database specialist for queries, performance, schema design
-
----
-
-## B2B Domain
-
-### Business Modules
-The web monorepo contains these B2B modules serving company users:
-
-| Module | Description |
-|--------|-------------|
-| Monitoring | System monitoring and alerting |
-| Communities | Community management features |
-| Inbox | Unified inbox for messages |
-| Smart Send | Intelligent message routing and delivery |
-| Composer | Content composition tools |
-| Archive | Document archival and retrieval |
-| Contacts | Contact management |
-| Organization | Organization structure and settings |
-
-### Conventions
-- Each module has its own feature area within the Next.js monorepo
-- Shared components and utilities across modules
-- Module-specific state management per feature area
-
----
-
-## B2C Domain
-
-### Consumer App
-The B2C domain covers the ePost consumer mobile application, available on iOS and Android.
-
-### Conventions
-- Separate native apps per platform (iOS: Swift/SwiftUI, Android: Kotlin/Compose)
-- Backend APIs serving mobile clients (Java EE on WildFly)
-- Shared business logic patterns across platforms where applicable
-
----
-
-## Kit Design Tools
-
-### Agents
-- `epost-scout` — Codebase exploration and file discovery
-- `epost-mcp-manager` — MCP server integration management
+- `epost-muji` — MUJI UI library agent for design system development, component knowledge, Figma-to-code pipeline
 
 ### Skills
-- `agents/claude/agent-development/` — Agent creation and maintenance patterns
-- `agents/claude/skill-development/` — Skill authoring and frontmatter conventions
+- `figma` — Figma MCP tool patterns and design token extraction (all platforms)
+- `design-tokens` — Vien 2.0 design system variable architecture (1,059 variables, 42 collections)
+- `ui-lib-dev` — UI library development pipeline (plan, implement, audit, fix, document); integration guidance via `references/guidance.md`
 
 ---
 
-## Web RAG System
 
-### Connection
-- **Server**: `epost_web_theme_rag` (port 2636)
-- **MCP Tools**: `query_rag`, `get_rag_status`, `sanitize_text`
-- **Target**: klara-theme components, Next.js codebase (`luz_next`)
+## Business Domains
 
-### Usage
-- Query before implementing UI components
-- Search design tokens, component patterns, existing implementations
-- Filter by: component, topic (design-system, ui, state-management), category, file_type
+### B2B Domain
+B2B modules: Monitoring, Communities, Inbox, Smart Send, Composer, Archive, Contacts, Organization, Smart Letter.
+
+### B2C Domain
+Consumer mobile application patterns for iOS and Android.
 
 ---
 
-## iOS RAG System
 
-### Connection
-- **Server**: `epost_ios_rag` (port 2637)
-- **MCP Tools**: `query_rag`, `get_rag_status`
-- **Targets**: luz_epost_ios (main app), luz_ios_designui (design system), luz_theme_ui (theme)
 
-### Usage
-- Query before implementing iOS features
-- Search Swift patterns, UIKit/SwiftUI components, theme tokens
-- Cross-project search across all three iOS repositories
+## Guidelines
 
----
+### Decision Authority
+**Auto-execute**: dependency installs, lint fixes, documentation formatting
+**Ask first**: deleting files, modifying production configs, introducing new dependencies, multi-file refactors, changing API contracts
 
-*Generated by epost-kit v1.0.0 on 2026-03-05*
+### Code Changes
+- Verify environment state before operations
+- Use relative paths from project root
+- Prefer existing patterns over introducing new conventions
+- Conservative defaults: safety over speed, clarity over cleverness
+
+### Core Rules
+See `.claude/skills/core/SKILL.md` for operational boundaries.
+
+## Related Documents
+- `.claude/skills/core/SKILL.md` — Operational rules and boundaries
+

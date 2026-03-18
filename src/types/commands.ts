@@ -104,3 +104,11 @@ export interface ConfigIgnoreAddOptions extends ConfigOptions {
 export interface ConfigIgnoreRemoveOptions extends ConfigOptions {
   pattern: string;
 }
+
+export interface ConvertOptions extends GlobalOptions {
+  output?: string; // Output directory (default: .github)
+  packages?: string; // Comma-separated package names
+  profile?: string; // Profile filter
+  dryRun?: boolean; // Preview only, no files written
+  source?: boolean; // Use source repo (dev mode)
+}
