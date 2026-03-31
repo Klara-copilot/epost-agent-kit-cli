@@ -124,14 +124,43 @@ Write-Ok "CLI linked globally"
 # 5. Verify installation
 # ============================================================================
 
-$versionOutput = epost-kit --version 2>$null
-if ($LASTEXITCODE -ne 0 -or -not $versionOutput) {
-    Write-Err "Verification failed — epost-kit not found in PATH"
-    Write-Err "Restart your terminal or add npm bin to PATH."
+# On Windows, npm places linked bins in the prefix dir directly (no bin/ subdir)
+$NpmPrefix = (npm config get prefix).Trim()
+$EpostBin  = Join-Path $NpmPrefix "epost-kit.cmd"
+
+# Confirm .cmd shim was created (definitive proof npm link worked)
+if (-not (Test-Path $EpostBin)) {
+    Write-Err "Verification failed — epost-kit.cmd not found at $EpostBin"
+    Write-Err "Try manually: cd $CliDir && npm link"
     exit 1
 }
 
-Write-Ok "Installed: epost-kit $versionOutput"
+Write-Ok "CLI installed at: $EpostBin"
+
+# Check PATH (advisory only — do NOT exit on failure)
+$versionOutput = & epost-kit --version 2>$null
+if ($LASTEXITCODE -eq 0 -and $versionOutput) {
+    Write-Ok "Installed: epost-kit $versionOutput"
+} else {
+    Write-Warn "epost-kit not yet in PATH for this session."
+
+    # Offer to auto-append to PowerShell profile
+    $reply = Read-Host "Add epost-kit to PATH in `$PROFILE? [Y/n]"
+    if ($reply -eq "" -or $reply -match "^[Yy]$") {
+        if (-not (Test-Path (Split-Path $PROFILE))) {
+            New-Item -ItemType Directory -Path (Split-Path $PROFILE) -Force | Out-Null
+        }
+        Add-Content -Path $PROFILE -Value ""
+        Add-Content -Path $PROFILE -Value "# epost-kit — added by installer"
+        Add-Content -Path $PROFILE -Value "`$env:PATH += `";$NpmPrefix`""
+        Write-Ok "Added to `$PROFILE — restart terminal or run: . `$PROFILE"
+    } else {
+        Write-Warn "Skipped. Add manually to `$PROFILE:"
+        Write-Warn "  `$env:PATH += `";$NpmPrefix`""
+    }
+
+    Write-Ok "Installation complete — restart terminal to use epost-kit"
+}
 
 # ============================================================================
 # 6. Done
