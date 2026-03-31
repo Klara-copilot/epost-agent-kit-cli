@@ -19,15 +19,20 @@ export interface InitOptions extends GlobalOptions {
   exclude?: string;
   fresh?: boolean;
   dryRun?: boolean;
+  preview?: boolean; // Alias for dryRun — show file list before writing
   dir?: string;
   forceDownload?: boolean; // Skip cache, always download fresh release
-  target?: "claude" | "cursor" | "vscode"; // IDE target override
+  target?: "claude" | "cursor" | "vscode" | "export"; // IDE target override
   source?: string | boolean; // Use source repo for package resolution (local dev mode); string = explicit path
+  full?: boolean; // Non-interactive: install full kit (equiv. --profile full)
+  bundle?: string; // Non-interactive: install bundle by key (web, ios-developer, etc.)
+  skill?: string; // Non-interactive: install single skill
 }
 
 export interface DoctorOptions extends GlobalOptions {
   fix?: boolean;
   report?: boolean;
+  dir?: string;
 }
 
 export interface VersionsOptions extends GlobalOptions {
@@ -40,6 +45,9 @@ export interface UpdateOptions extends GlobalOptions {
   dir?: string;
   source?: string | boolean;
   forceDownload?: boolean;
+  json?: boolean;
+  dryRun?: boolean;
+  preview?: boolean;
 }
 
 export interface UninstallOptions extends GlobalOptions {
@@ -47,6 +55,7 @@ export interface UninstallOptions extends GlobalOptions {
   force?: boolean;
   dryRun?: boolean;
   dir?: string;
+  json?: boolean;
 }
 
 export interface ProfileListOptions extends GlobalOptions {
@@ -106,9 +115,79 @@ export interface ConfigIgnoreRemoveOptions extends ConfigOptions {
 }
 
 export interface ConvertOptions extends GlobalOptions {
-  output?: string; // Output directory (default: .github)
+  output?: string;   // Output directory (default: .github)
   packages?: string; // Comma-separated package names
-  profile?: string; // Profile filter
-  dryRun?: boolean; // Preview only, no files written
-  source?: boolean; // Use source repo (dev mode)
+  profile?: string;  // Profile filter
+  dryRun?: boolean;  // Preview only, no files written
+  source?: boolean;  // Use source repo (dev mode)
+}
+
+export interface RolesOptions extends GlobalOptions {
+  json?: boolean;
+}
+
+export interface AddOptions extends GlobalOptions {
+  role?: string;
+  dir?: string;
+  dryRun?: boolean;
+  json?: boolean;
+}
+
+export interface RemoveOptions extends GlobalOptions {
+  role?: string;
+  dir?: string;
+  force?: boolean;
+  dryRun?: boolean;
+  json?: boolean;
+}
+
+export interface DryRunCommandOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface TraceOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface ShowOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface ListOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface BrowseOptions extends GlobalOptions {
+  dir?: string;
+}
+
+export interface ValidateOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface StatusOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface EnableDisableOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface RepairOptions extends GlobalOptions {
+  dir?: string;
+  json?: boolean;
+}
+
+export interface UpgradeOptions extends GlobalOptions {
+  check?: boolean;
+  noCache?: boolean;
+  dir?: string;
+  json?: boolean;
 }

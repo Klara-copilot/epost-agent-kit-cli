@@ -27,35 +27,46 @@ See [install/README.md](./install/README.md) for manual installation and trouble
 ## Quick Start
 
 ```bash
-# Set up kit in your project (interactive)
-epost-kit init
+# Install full kit (interactive wizard)
+epost-kit install
 
-# Re-install with existing config (no prompts)
-epost-kit update
+# Install non-interactively
+epost-kit install --full                  # all features
+epost-kit install --bundle web-frontend   # web role
+epost-kit install --skill discover        # single skill
 
-# Check installation health
+# Check status
+epost-kit status
 epost-kit doctor
 
-# Customize settings
-epost-kit config
+# Diagnose routing
+epost-kit trace "build a login page"
 ```
 
 ---
 
 ## Commands
 
-### `epost-kit init`
-Interactive setup wizard. Installs agents, skills, and hooks into your project.
+### Install
+
+#### `epost-kit install` / `epost-kit init`
+Interactive setup wizard — or non-interactive with flags.
 
 ```bash
-epost-kit init                                        # interactive
-epost-kit init --profile web-fullstack                # skip profile prompt
-epost-kit init --target cursor                        # target Cursor IDE
-epost-kit init --target vscode                        # target VS Code Copilot
-epost-kit init --packages core,platform-web           # explicit packages
-epost-kit init --fresh                                # wipe + reinstall
-epost-kit init --source /path/to/epost_agent_kit      # use local source (dev)
-epost-kit init --dry-run                              # preview only
+epost-kit install                              # interactive (7-step wizard)
+epost-kit install --full                       # full kit, no prompts
+epost-kit install --bundle web-frontend        # install a role bundle
+epost-kit install --bundle ios-developer
+epost-kit install --bundle android-developer
+epost-kit install --bundle backend-api
+epost-kit install --bundle designer
+epost-kit install --bundle kit-author
+epost-kit install --skill discover             # single skill
+epost-kit install --preview                    # show what will be created
+epost-kit install --target cursor              # target Cursor IDE
+epost-kit install --target vscode              # target VS Code Copilot
+epost-kit install --fresh                      # wipe + reinstall
+epost-kit install --source /path/to/kit        # use local source (dev)
 ```
 
 **Targets:**
@@ -65,65 +76,171 @@ epost-kit init --dry-run                              # preview only
 | `--target cursor` | `.cursor/` + `.cursor/rules/` | Cursor agents + `.mdc` rules |
 | `--target vscode` | `.github/` | Copilot `.agent.md` + `hooks.json` |
 
-### `epost-kit update`
-Re-installs from existing metadata (profile + target preserved, no prompts).
+---
+
+### Inspect
+
+#### `epost-kit status`
+Show current install — scope, enabled items, mode.
 
 ```bash
-epost-kit update                                      # reinstall current setup
-epost-kit update --source /path/to/epost_agent_kit    # use local source
+epost-kit status          # human-readable summary
+epost-kit status --json   # machine-readable
 ```
 
-### `epost-kit upgrade`
-Upgrade the CLI itself to the latest version.
+#### `epost-kit list`
+List installed items.
 
 ```bash
-epost-kit upgrade           # upgrade CLI
-epost-kit upgrade --check   # check if upgrade available
+epost-kit list skills
+epost-kit list agents
+epost-kit list hooks
 ```
 
-### `epost-kit config`
-Interactive TUI to view and edit kit configuration.
+#### `epost-kit show`
+Display configuration and routing.
 
 ```bash
-epost-kit config                          # interactive panel
+epost-kit show routing    # render routing table from CLAUDE.md
+epost-kit show config     # display .epost.json config
+```
+
+---
+
+### Diagnose
+
+#### `epost-kit doctor`
+Preflight checks — git, node, tools, env, permissions.
+
+```bash
+epost-kit doctor              # run all checks
+epost-kit doctor --dir <path> # check a specific project directory
+epost-kit doctor --fix        # auto-fix issues
+epost-kit doctor --report     # detailed JSON report
+```
+
+#### `epost-kit validate`
+Post-install structured validation (config, skills, routing, delegation, hooks).
+
+```bash
+epost-kit validate          # structured pass/warn/fail per check
+epost-kit validate --json   # machine-readable
+```
+
+#### `epost-kit dry-run "<prompt>"`
+Simulate routing for a natural language prompt without running anything.
+
+```bash
+epost-kit dry-run "build a login page"
+epost-kit dry-run "commit and push" --json
+```
+
+#### `epost-kit trace "<prompt>"`
+Verbose orchestration trace — shows intent classification, rule match, agent dispatch.
+
+```bash
+epost-kit trace "build a login page"
+epost-kit trace "commit and push" --json
+```
+
+#### `epost-kit repair`
+Auto-fix validation failures by re-running the install engine.
+
+```bash
+epost-kit repair          # check + prompt to fix
+epost-kit repair --yes    # fix without confirmation
+epost-kit repair --json   # machine-readable result
+```
+
+---
+
+### Manage
+
+#### `epost-kit enable` / `epost-kit disable`
+Toggle individual skills or hooks without reinstalling.
+
+```bash
+epost-kit enable skill review
+epost-kit disable skill discover
+epost-kit enable hook knowledge-capture
+epost-kit disable hook auto-capture
+```
+
+#### `epost-kit add` / `epost-kit remove`
+Add or remove individual skills/bundles from an existing install.
+
+```bash
+epost-kit add skill review
+epost-kit remove bundle mobile
+epost-kit add skill review --preview    # dry-run
+epost-kit add skill review --json
+```
+
+#### `epost-kit update`
+Re-install from existing metadata (profile + target preserved).
+
+```bash
+epost-kit update                                    # reinstall current setup
+epost-kit update --preview                          # show what would change
+epost-kit update --source /path/to/epost_agent_kit  # use local source
+epost-kit update --json
+```
+
+#### `epost-kit upgrade`
+Check for and apply CLI and kit content updates.
+
+```bash
+epost-kit upgrade           # check both CLI and kit content
+epost-kit upgrade --check   # report only, no install
+epost-kit upgrade --json    # machine-readable version status
+```
+
+#### `epost-kit uninstall`
+Remove the installed kit, respecting file ownership.
+
+```bash
+epost-kit uninstall                  # interactive
+epost-kit uninstall --keep-custom    # keep user-modified files
+epost-kit uninstall --force          # remove everything
+epost-kit uninstall --dry-run        # preview what would be removed
+epost-kit uninstall --json
+```
+
+---
+
+### Other
+
+#### `epost-kit config`
+View and edit kit configuration.
+
+```bash
 epost-kit config show                     # print current config
 epost-kit config get plan.engine          # get a value
 epost-kit config set plan.engine gemini   # set a value
 epost-kit config reset                    # restore defaults
-epost-kit config ignore                   # show ignore patterns
 epost-kit config ignore add <glob>        # add ignore pattern
 epost-kit config ignore remove <glob>     # remove ignore pattern
 ```
 
-### `epost-kit doctor`
-Health checks for installation integrity and environment.
-
-```bash
-epost-kit doctor            # run all checks
-epost-kit doctor --fix      # auto-fix issues
-epost-kit doctor --report   # detailed JSON report
-```
-
-### `epost-kit dev`
-Live-sync a local kit source into your project (for kit authors).
+#### `epost-kit dev`
+Live-sync a local kit source (for kit authors).
 
 ```bash
 epost-kit dev init    # install from ../epost_agent_kit + start watcher
 epost-kit dev update  # one-shot update from local source
 epost-kit dev stop    # stop background watcher
-epost-kit dev         # start watcher only (requires prior init)
 ```
 
-### `epost-kit uninstall`
-Remove the installed kit, respecting file ownership.
+#### `epost-kit convert`
+Convert Claude Code agent config to VS Code Copilot format.
 
 ```bash
-epost-kit uninstall                 # interactive
-epost-kit uninstall --keep-custom   # keep user-modified files
-epost-kit uninstall --force         # remove everything
+epost-kit convert                    # convert installed .claude/ → .github/
+epost-kit convert --dry-run          # preview
+epost-kit convert --profile web-fullstack
 ```
 
-### `epost-kit profile`
+#### `epost-kit profile`
 Browse available developer profiles.
 
 ```bash
@@ -131,34 +248,13 @@ epost-kit profile list                  # list all profiles
 epost-kit profile show web-fullstack    # show profile details
 ```
 
-### `epost-kit package`
-Manage individual packages.
-
-```bash
-epost-kit package list          # list available packages
-epost-kit package add <name>    # add to existing install
-epost-kit package remove <name> # remove from install
-```
-
-### `epost-kit versions`
-List available kit releases.
-
-```bash
-epost-kit versions              # latest 10 releases
-epost-kit versions --limit 20
-epost-kit versions --pre        # include pre-releases
-```
-
-### `epost-kit lint` / `fix-refs` / `verify`
+#### `epost-kit lint` / `fix-refs` / `verify`
 Quality checks for kit package authors.
 
 ```bash
-epost-kit lint                # validate references in installed files
-epost-kit fix-refs            # preview stale reference fixes
-epost-kit fix-refs --apply    # apply fixes
-epost-kit verify              # full audit: integrity + lint + health + deps
-epost-kit verify --strict     # fail on warnings
-epost-kit verify --json       # machine-readable output
+epost-kit lint                # validate references
+epost-kit fix-refs --apply    # fix stale references
+epost-kit verify --json       # full audit, machine-readable
 ```
 
 ---
@@ -281,4 +377,4 @@ src/
 
 ---
 
-*Last updated 2026-03-09*
+*Last updated 2026-03-31*

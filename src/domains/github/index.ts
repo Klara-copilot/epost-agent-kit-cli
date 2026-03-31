@@ -3,3 +3,5 @@ export * from './access-checker.js';
 export * from './release-downloader.js';
 export * from './release-validator.js';
 export * from './release-cache.js';
+export * from './registry-cache.js';
+export * from './registry-client.js';

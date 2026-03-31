@@ -9,7 +9,7 @@
 
 // ── Types ──
 
-export type TargetName = "claude" | "cursor" | "vscode";
+export type TargetName = "claude" | "cursor" | "vscode" | "export";
 
 export interface TransformResult {
   content: string;
@@ -87,6 +87,10 @@ export async function createTargetAdapter(
     case "vscode": {
       const { CopilotAdapter } = await import("./copilot-adapter.js");
       return new CopilotAdapter();
+    }
+    case "export": {
+      const { ExportAdapter } = await import("./export-adapter.js");
+      return new ExportAdapter();
     }
     default:
       throw new Error(`Unknown target: ${target}`);

@@ -168,6 +168,96 @@ export async function checkDependencies(cwd: string): Promise<CheckResult> {
   return { status: 'pass', message: 'Dependencies installed', fixable: false };
 }
 
+export async function checkResearchEngine(cwd: string): Promise<CheckResult> {
+  // Locate .epost-kit.json in install dir
+  const candidates = [
+    join(cwd, '.claude', '.epost-kit.json'),
+    join(cwd, '.cursor', '.epost-kit.json'),
+  ];
+
+  let engine: string = 'websearch';
+  for (const configPath of candidates) {
+    if (existsSync(configPath)) {
+      try {
+        const raw = JSON.parse(await readFile(configPath, 'utf-8'));
+        const e = raw?.skills?.research?.engine;
+        if (typeof e === 'string') engine = e;
+      } catch {
+        // ignore parse errors — treat as unconfigured
+      }
+      break;
+    }
+  }
+
+  if (engine === 'websearch') {
+    return { status: 'pass', message: 'Research engine: websearch (built-in)', fixable: false };
+  }
+
+  if (engine === 'gemini') {
+    // Check gemini binary
+    try {
+      await execa('gemini', ['--version']);
+      return { status: 'pass', message: 'Research engine: Gemini CLI (found)', fixable: false };
+    } catch {
+      // Check GEMINI_API_KEY as fallback
+      let apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        const dotEnvPath = join(cwd, '.claude', '.env');
+        if (existsSync(dotEnvPath)) {
+          try {
+            const lines = (await readFile(dotEnvPath, 'utf-8')).split('\n');
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith('GEMINI_API_KEY=')) {
+                apiKey = trimmed.slice('GEMINI_API_KEY='.length).replace(/^["']|["']$/g, '');
+                break;
+              }
+            }
+          } catch { /* ignore */ }
+        }
+      }
+      if (apiKey) {
+        return { status: 'pass', message: 'Research engine: Gemini (API key set, no CLI)', fixable: false };
+      }
+      return {
+        status: 'warn',
+        message: 'Research engine: Gemini — CLI not found and GEMINI_API_KEY not set. Run: npm i -g @google/gemini-cli',
+        fixable: false,
+      };
+    }
+  }
+
+  if (engine === 'perplexity') {
+    let apiKey = process.env.PERPLEXITY_API_KEY;
+    if (!apiKey) {
+      const dotEnvPath = join(cwd, '.claude', '.env');
+      if (existsSync(dotEnvPath)) {
+        try {
+          const lines = (await readFile(dotEnvPath, 'utf-8')).split('\n');
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('PERPLEXITY_API_KEY=')) {
+              apiKey = trimmed.slice('PERPLEXITY_API_KEY='.length).replace(/^["']|["']$/g, '');
+              break;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    if (apiKey) {
+      return { status: 'pass', message: 'Research engine: Perplexity (API key set)', fixable: false };
+    }
+    return {
+      status: 'warn',
+      message: 'Research engine: Perplexity — PERPLEXITY_API_KEY not set. Set via `epost-kit config` → Secrets → PERPLEXITY_API_KEY',
+      fixable: false,
+    };
+  }
+
+  // Unknown engine — pass with info
+  return { status: 'pass', message: `Research engine: ${engine} (unrecognized, skipping check)`, fixable: false };
+}
+
 export async function runAllChecks(cwd: string): Promise<CheckResult[]> {
   return Promise.all([
     checkNodeVersion(),
@@ -176,5 +266,6 @@ export async function runAllChecks(cwd: string): Promise<CheckResult[]> {
     checkGitHubAuth(),
     checkFilePermissions(cwd),
     checkDependencies(cwd),
+    checkResearchEngine(cwd),
   ]);
 }
