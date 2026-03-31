@@ -109,6 +109,9 @@ npm install || { error "npm install failed"; exit 1; }
 info "Building..."
 npm run build || { error "npm run build failed"; exit 1; }
 
+# Ensure the compiled entry point is executable (tsc does not set +x)
+chmod +x dist/cli.js
+
 success "Build complete"
 
 # ============================================================================
