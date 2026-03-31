@@ -14,7 +14,6 @@ import {
   mkdir,
   rm,
 } from "node:fs/promises";
-import { select, confirm, checkbox, Separator } from "@inquirer/prompts";
 import ora from "ora";
 import pc from "picocolors";
 import { logger } from "@/shared/logger.js";
@@ -49,7 +48,7 @@ import {
   type PackageSnippet,
 } from "@/domains/help/claude-md-generator.js";
 import { generateMdcFile } from "@/domains/installation/mdc-generator.js";
-import { detectProjectProfile, listProfiles, getProfileInfo } from "@/domains/packages/profile-loader.js";
+import { detectProjectProfile, getProfileInfo } from "@/domains/packages/profile-loader.js";
 import { VERSION } from "@/domains/help/branding.js";
 import {
   createTargetAdapter,
@@ -125,20 +124,6 @@ async function getProfilesPath(source?: string | boolean): Promise<string> {
 
 // ─── Package-Based Installation ───
 
-/** Fallback descriptions for profiles that don't define a description field in profiles.yaml */
-const PROFILE_DESCRIPTIONS: Record<string, string> = {
-  "web-fullstack":   "Next.js web app + backend API + B2B domain modules",
-  "web-ui-lib":      "Next.js web app + component library + design tokens",
-  "ios-b2c":         "Swift/SwiftUI iOS app for consumer-facing features",
-  "ios-ui-lib":      "Swift/SwiftUI iOS app + component library + design tokens",
-  "android-b2c":     "Kotlin/Jetpack Compose Android consumer app",
-  "android-ui-lib":  "Kotlin/Jetpack Compose Android app + component library",
-  "mobile-b2c":      "iOS + Android consumer apps in one profile",
-  "backend-api":     "Java EE backend — WildFly, JAX-RS, PostgreSQL, MongoDB",
-  "cloud-architect": "Infrastructure + backend — Terraform, Cloud Build, GCP",
-  "kit-designer":    "Author and maintain agents, skills, and commands",
-  "full":            "Every platform — web, iOS, Android, backend, and kit tools",
-};
 
 async function runPackageInit(opts: InitOptions): Promise<void> {
   // Support --dir to install into a different directory
@@ -173,34 +158,13 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
 
   logger.debug(`Using packages from: ${packagesDir}`);
 
-  // ── Scope selection: project-local vs user-global ──
+  // ── Interactive wizard (skipped when --yes or explicit --profile/--packages flags) ──
   let installScope: "project" | "user" = "project";
-  if (!opts.yes && !opts.dir) {
-    const { homedir: getHomedir } = await import("node:os");
-    const scopeChoice = await select({
-      message: "Where should the agent kit be installed?",
-      choices: [
-        {
-          name: `This project  →  committed with your repo, only active here`,
-          value: "project",
-        },
-        {
-          name: `My user account  →  ~/.claude/  available in every project you open`,
-          value: "user",
-        },
-      ],
-      default: "project",
-    });
-    if (scopeChoice === "user") {
-      installScope = "user";
-      projectDir = getHomedir();
-    }
-  }
+  let profileName = opts.profile;
+  let mergedProfilePackages: string[] | undefined;
+  let wizardTarget: TargetName | undefined;
 
-  const metadata = await readMetadata(projectDir);
-  const isUpdate = !!metadata && !opts.fresh;
-
-  // Parse comma-separated options
+  // Parse comma-separated options (used for CI / flag-driven path)
   const packagesList = opts.packages
     ?.split(",")
     .map((s) => s.trim())
@@ -214,11 +178,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // ── Step 2/7: Select profiles ──
-  let profileName = opts.profile;
-  let mergedProfilePackages: string[] | undefined;
-
-  // Handle combined profiles stored as "profile-a+profile-b" (from multi-profile selection)
+  // Handle combined profiles stored as "profile-a+profile-b"
   if (profileName && profileName.includes("+") && profileName !== "(custom)") {
     const profilesForMerge = await loadProfiles(profilesPath);
     const parts = profileName.split("+");
@@ -231,92 +191,39 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     logger.debug(`Expanded combined profile "${profileName}" → ${mergedProfilePackages.join(", ")}`);
   }
 
-  if (!profileName && !packagesList) {
+  if (!opts.yes && !opts.profile && !opts.packages) {
+    // ── Run interactive wizard ──
+    const { runInitWizard } = await import("./init-wizard.js");
+    const wizardResult = await runInitWizard(projectDir, packagesDir, profilesPath);
+    if (!wizardResult) {
+      logger.info("Cancelled.");
+      return;
+    }
+
+    // Unpack wizard state
+    installScope = wizardResult.installScope;
+    if (installScope === "user") {
+      const { homedir: getHomedir } = await import("node:os");
+      projectDir = getHomedir();
+    }
+    profileName = wizardResult.profileName;
+    mergedProfilePackages = wizardResult.resolvedPackages.length > 0
+      ? wizardResult.resolvedPackages
+      : undefined;
+    wizardTarget = wizardResult.target;
+  } else if (opts.yes && !opts.profile && !opts.packages) {
+    // CI mode: auto-detect profile
     logger.step(2, 7, "Selecting profile");
     const profiles = await loadProfiles(profilesPath);
-
-    if (opts.yes) {
-      // CI mode: auto-detect and use detected profile (skip for user scope — no project to detect)
-      const detected = installScope === "project"
-        ? await detectProjectProfile(projectDir, profiles)
-        : null;
-      if (detected) {
-        profileName = detected.profile;
-        logger.info(`Auto-detected profile: ${detected.displayName}`);
-      }
-    } else {
-      // Interactive: checkbox with descriptions, auto-detected profile pre-checked
-      const detected = installScope === "project"
-        ? await detectProjectProfile(projectDir, profiles)
-        : null;
-      const allProfiles = listProfiles(profiles);
-
-      if (detected) {
-        logger.info(`Looks like a ${detected.displayName} project — pre-selected below.`);
-      }
-
-      const CUSTOM = "__custom__";
-      const selectedProfiles = await checkbox({
-        message: "Which best describes this project?  (space to toggle, enter to confirm)",
-        pageSize: 12,
-        choices: [
-          ...allProfiles.map((p) => {
-            const desc = p.description || PROFILE_DESCRIPTIONS[p.name] || "";
-            const label = desc
-              ? `${p.displayName.padEnd(26)} ${pc.dim(desc)}`
-              : p.displayName;
-            return {
-              name: label,
-              value: p.name,
-              checked: detected ? p.name === detected.profile : false,
-            };
-          }),
-          new Separator(),
-          {
-            name: `Custom  ${pc.dim("→ let me pick packages manually")}`,
-            value: CUSTOM,
-          },
-        ],
-      });
-
-      if (selectedProfiles.length === 0) {
-        logger.info("No profiles selected. Cancelled.");
-        return;
-      } else if (selectedProfiles.includes(CUSTOM)) {
-        // Custom: show all available packages for manual selection
-        const allPkgManifests = await loadAllManifests(packagesDir);
-        const allPkgNames = [...allPkgManifests.keys()].sort();
-        const selectedPkgs = await checkbox({
-          message: "Select packages to install:",
-          pageSize: 12,
-          choices: allPkgNames.map((name) => {
-            const m = allPkgManifests.get(name);
-            const desc = m?.description || "";
-            const label = desc ? `${name.padEnd(24)} ${pc.dim(desc)}` : name;
-            return { name: label, value: name };
-          }),
-        });
-        if (selectedPkgs.length === 0) {
-          logger.info("No packages selected. Cancelled.");
-          return;
-        }
-        mergedProfilePackages = selectedPkgs;
-        profileName = "(custom)";
-      } else if (selectedProfiles.length === 1) {
-        profileName = selectedProfiles[0];
-      } else {
-        // Merge packages from all selected profiles with deduplication
-        const pkgSet = new Set<string>();
-        for (const pName of selectedProfiles) {
-          const pInfo = getProfileInfo(pName, profiles);
-          if (pInfo) pInfo.packages.forEach((pkg) => pkgSet.add(pkg));
-        }
-        mergedProfilePackages = [...pkgSet];
-        profileName = selectedProfiles.join("+");
-        logger.info(`Merged ${selectedProfiles.length} profiles: ${profileName}`);
-      }
+    const detected = await detectProjectProfile(projectDir, profiles);
+    if (detected) {
+      profileName = detected.profile;
+      logger.info(`Auto-detected profile: ${detected.displayName}`);
     }
   }
+
+  const metadata = await readMetadata(projectDir);
+  const isUpdate = !!metadata && !opts.fresh;
 
   // ── Step 3/7: Resolve packages ──
   logger.step(3, 7, "Resolving packages");
@@ -334,48 +241,12 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   );
 
   // ── Step 4/7: Add-ons ──
-  // Merge recommended (pre-checked) + optional (unchecked) into one unified step
-  const recommendedSet = new Set(resolved.recommended);
-  const allAddons = [
-    ...resolved.recommended,
-    ...resolved.optional.filter((n) => !recommendedSet.has(n)),
-  ];
-
-  if (allAddons.length > 0 && !opts.yes) {
-    logger.step(4, 7, "Add-ons");
-    // Load manifests for descriptions (reads local YAML cache)
-    const addonManifests = await loadAllManifests(packagesDir);
-    const selectedAddons = await checkbox({
-      message: "Add optional packages?  (pre-checked = recommended for your profile)",
-      pageSize: 8,
-      choices: allAddons.map((name) => {
-        const manifest = addonManifests.get(name);
-        const desc = manifest?.description || "";
-        const label = desc ? `${name.padEnd(24)} ${pc.dim(desc)}` : name;
-        return { name: label, value: name, checked: recommendedSet.has(name) };
-      }),
-    });
-
-    if (selectedAddons.length > 0) {
-      const reResolved = await resolvePackages({
-        packagesDir,
-        profilesPath,
-        profile: mergedProfilePackages ? undefined : profileName,
-        packages: mergedProfilePackages
-          ? [...mergedProfilePackages, ...selectedAddons]
-          : [...resolved.packages, ...selectedAddons],
-        exclude: excludeList,
-      });
-      resolved.packages.length = 0;
-      resolved.packages.push(...reResolved.packages);
-    }
-  } else {
-    logger.step(4, 7, "Add-ons");
-  }
+  logger.step(4, 7, "Add-ons");
 
   // ── Select IDE/editor ──
-  const validTargets: TargetName[] = ["claude", "cursor", "vscode"];
+  const validTargets: TargetName[] = ["claude", "cursor", "vscode", "export"];
   let target: TargetName =
+    wizardTarget ||
     (opts.target as TargetName) ||
     (metadata?.target as TargetName) ||
     "claude";
@@ -384,23 +255,6 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     throw new Error(
       `Invalid target "${opts.target}". Valid: ${validTargets.join(", ")}`,
     );
-  }
-
-  if (!opts.target && !opts.yes) {
-    logger.step(5, 7, "Selecting editor");
-    target = await select({
-      message: "Which editor are you using?",
-      choices: [
-        { name: `Claude Code            → .claude/`, value: "claude" as const },
-        { name: `Cursor                 → .cursor/`, value: "cursor" as const },
-        { name: `VS Code (Copilot)      → .github/`, value: "vscode" as const },
-      ],
-      default: target,
-    });
-    // Warn: user-scope + VS Code writes to ~/.github/ which is unusual
-    if (installScope === "user" && target === "vscode") {
-      logger.warn("User-scope install with VS Code writes to ~/.github/ — consider project scope instead.");
-    }
   }
 
   // Create adapter — drives install dir, file transforms, and hook format
@@ -451,37 +305,6 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     console.log(indent(packageTable(pkgSummaries), 2));
     console.log("\n  No changes made (dry-run mode).\n");
     return;
-  }
-
-  // Preview + confirm
-  if (!opts.yes) {
-    const scopeLabel = installScope === "user"
-      ? `~/${installDirName}/  (global)`
-      : `${projectName}/${installDirName}/`;
-    const allAgents   = pkgSummaries.flatMap((s) => manifests.get(s.name)?.provides.agents   ?? []);
-    const allSkills   = pkgSummaries.flatMap((s) => manifests.get(s.name)?.provides.skills   ?? []);
-    const allCommands = pkgSummaries.flatMap((s) => manifests.get(s.name)?.provides.commands ?? []);
-    const truncate = (arr: string[], max = 4) =>
-      arr.length <= max ? arr.join(", ") : `${arr.slice(0, max).join(", ")}  (+${arr.length - max} more)`;
-
-    const previewContent = [
-      keyValue([
-        ["Profile", profileName || "(custom)"],
-        ["Target ", `${target === "claude" ? "Claude Code" : target === "cursor" ? "Cursor" : "VS Code"}  →  ${scopeLabel}`],
-      ], { indent: 0 }),
-      "",
-      "You'll get",
-      ...(allAgents.length   ? [`  ${pc.cyan("agents   ")}  ${truncate(allAgents)}`]   : []),
-      ...(allSkills.length   ? [`  ${pc.cyan("skills   ")}  ${truncate(allSkills, 5)}`] : []),
-      ...(allCommands.length ? [`  ${pc.cyan("commands ")}  ${truncate(allCommands)}`] : []),
-    ].join("\n");
-
-    console.log("\n" + box(previewContent, { title: "Ready to install" }));
-    const proceed = await confirm({ message: "Install now?", default: true });
-    if (!proceed) {
-      logger.info("Cancelled");
-      return;
-    }
   }
 
   // ── Step 5/7: Backup then clean-wipe install dir ──
@@ -1252,6 +1075,21 @@ function extractSkillFrontmatter(
 // ─── Main Entry ───
 
 export async function runInit(opts: InitOptions): Promise<void> {
+  // --profile deprecation path: map to `epost-kit add --role <name>`
+  if (opts.profile) {
+    const { resolveProfileAlias } = await import('@/domains/resolver/profile-aliases.js');
+    const alias = resolveProfileAlias(opts.profile);
+    if (alias?.deprecated) {
+      logger.warn(
+        `--profile is deprecated. Use \`epost-kit add --role <name>\` instead.`,
+      );
+      logger.info(
+        `"${opts.profile}" maps to role(s): ${alias.roles.join(', ')}`,
+      );
+      // Fall through: continue with original init flow using profile
+    }
+  }
+
   // Source mode: skip GitHub download, use local source repo
   if (opts.source) {
     return runPackageInit(opts);

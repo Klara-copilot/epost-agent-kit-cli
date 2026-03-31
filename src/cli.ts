@@ -33,6 +33,7 @@ cli
 // Command: init - Initialize in existing project
 cli
   .command("init", "Initialize epost-agent-kit in existing project")
+  .alias("install")
   .option("--kit <name>", "Kit template to use (legacy mode)")
   .option("--profile <name>", "Developer profile (e.g., web-b2b, ios-b2c)")
   .option(
@@ -41,11 +42,15 @@ cli
   )
   .option("--optional <list>", "Comma-separated optional packages to include")
   .option("--exclude <list>", "Comma-separated packages to exclude")
+  .option("--full", "Non-interactive: install full kit (all packages)")
+  .option("--bundle <name>", "Non-interactive: install a role bundle (e.g., web, ios-developer)")
+  .option("--skill <name>", "Non-interactive: install a single skill (e.g., discover, plan)")
   .option("--fresh", "Fresh install (ignore existing files)")
   .option("--force", "Force fresh download and reinstall (combines --force-download and --fresh)")
   .option("--force-download", "Skip cache and re-download release from GitHub")
   .option("--source [path]", "Use local source repo for packages (dev mode, skips GitHub download)")
   .option("--dry-run", "Preview changes without applying")
+  .option("--preview", "Show file list before writing (alias for --dry-run)")
   .option("--dir <path>", "Target project directory")
   .action(async (opts: any) => {
     const { runInit } = await import("./commands/init.js");
@@ -55,6 +60,14 @@ cli
       ...opts,
       forceDownload: force || opts.forceDownload,
       fresh: force || opts.fresh,
+      // --preview is an alias for --dry-run
+      dryRun: opts.dryRun || opts.preview,
+      // --full maps to profile "full"
+      profile: opts.full ? "full" : (opts.bundle ? opts.bundle : opts.profile),
+      // --skill maps to single-package install
+      packages: opts.skill ? opts.skill : opts.packages,
+      // Trigger non-interactive mode for --full, --bundle, or --skill
+      yes: opts.yes || opts.full || !!opts.bundle || !!opts.skill,
     });
   });
 
@@ -63,9 +76,69 @@ cli
   .command("doctor", "Verify installation and environment health")
   .option("--fix", "Automatically fix issues")
   .option("--report", "Generate detailed report")
+  .option("--dir <path>", "Target project directory")
   .action(async (opts: any) => {
     const { runDoctor } = await import("./commands/doctor.js");
     await runDoctor({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: status - Show installed scope and enabled items
+cli
+  .command("status", "Show installed kit scope, enabled items, and mode")
+  .option("--dir <path>", "Target project directory")
+  .option("--json", "Output as JSON")
+  .action(async (opts: any) => {
+    const { runStatus } = await import("./commands/status.js");
+    await runStatus({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: validate - Post-install structured check
+cli
+  .command("validate", "Validate installed config, skills, routing, delegation, and hooks")
+  .option("--dir <path>", "Target project directory")
+  .option("--json", "Output as JSON")
+  .action(async (opts: any) => {
+    const { runValidate } = await import("./commands/validate.js");
+    await runValidate({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: dry-run - Simulate routing for a prompt
+cli
+  .command('dry-run [prompt]', 'Simulate routing for a natural language prompt')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (prompt: any, opts: any) => {
+    const { runDryRunCommand } = await import('./commands/dry-run-command.js');
+    await runDryRunCommand(prompt, { ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: trace - Show full orchestration path for a prompt
+cli
+  .command('trace [prompt]', 'Show full routing trace for a natural language prompt')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (prompt: any, opts: any) => {
+    const { runTrace } = await import('./commands/trace.js');
+    await runTrace(prompt, { ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: show - Display routing table or config
+cli
+  .command('show routing', 'Extract and render routing table from installed CLAUDE.md')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (opts: any) => {
+    const { runShowRouting } = await import('./commands/show.js');
+    await runShowRouting({ ...cli.globalCommand.options, ...opts });
+  });
+
+cli
+  .command('show config', 'Display current .epost.json and .epost-metadata.json config')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (opts: any) => {
+    const { runShowConfig } = await import('./commands/show.js');
+    await runShowConfig({ ...cli.globalCommand.options, ...opts });
   });
 
 // Command: versions - List available versions
@@ -82,24 +155,155 @@ cli
     });
   });
 
+// Command: roles - List available role bundles
+cli
+  .command('roles', 'List available role bundles')
+  .option('--json', 'Output as JSON')
+  .action(async (opts: any) => {
+    const { runRoles } = await import('./commands/roles.js');
+    await runRoles({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: add - Install a skill or role bundle
+cli
+  .command('add [name]', 'Install a skill or role bundle')
+  .option('--role <name>', 'Install a role bundle by name')
+  .option('--dir <path>', 'Target project directory')
+  .option('--dry-run', 'Preview changes without applying')
+  .option('--preview', 'Preview changes without applying (alias for --dry-run)')
+  .option('--json', 'Output as JSON')
+  .action(async (name: any, opts: any) => {
+    const { runAdd } = await import('./commands/add.js');
+    await runAdd(name, {
+      ...cli.globalCommand.options,
+      ...opts,
+      dryRun: opts.dryRun || opts.preview,
+    });
+  });
+
+// Command: remove - Remove a skill or role bundle
+cli
+  .command('remove [name]', 'Remove a skill or role bundle')
+  .option('--role <name>', 'Remove a role bundle by name')
+  .option('--dir <path>', 'Target project directory')
+  .option('--force', 'Skip confirmation and reverse-dep warning')
+  .option('--dry-run', 'Preview changes without applying')
+  .option('--preview', 'Preview changes without applying (alias for --dry-run)')
+  .option('--json', 'Output as JSON')
+  .action(async (name: any, opts: any) => {
+    const { runRemove } = await import('./commands/remove.js');
+    await runRemove(name, {
+      ...cli.globalCommand.options,
+      ...opts,
+      dryRun: opts.dryRun || opts.preview,
+    });
+  });
+
+// Command: enable - Enable a skill or hook
+cli
+  .command('enable <type> <name>', 'Enable an installed skill or hook')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (type: any, name: any, opts: any) => {
+    const { runEnableDisable } = await import('./commands/enable-disable.js');
+    await runEnableDisable('enable', type, name, { ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: disable - Disable a skill or hook (without removing from disk)
+cli
+  .command('disable <type> <name>', 'Disable an installed skill or hook (without removing from disk)')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (type: any, name: any, opts: any) => {
+    const { runEnableDisable } = await import('./commands/enable-disable.js');
+    await runEnableDisable('disable', type, name, { ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: browse - Interactive marketplace TUI
+cli
+  .command('browse', 'Interactive marketplace — browse and install roles')
+  .alias('marketplace')
+  .option('--dir <path>', 'Target project directory')
+  .option('--no-cache', 'Bypass registry cache for fresh remote version check')
+  .action(async (opts: any) => {
+    const { runBrowse } = await import('./commands/browse.js');
+    await runBrowse({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: proposals - Review and apply skill evolution proposals
+cli
+  .command('proposals', 'List, inspect, and apply skill improvement proposals')
+  .option('--show <id>', 'Show full proposal with diff')
+  .option('--approve <id>', 'Apply proposal to packages/ source skill')
+  .option('--reject <id>', 'Mark proposal rejected')
+  .option('--reason <text>', 'Rejection reason (use with --reject)')
+  .option('--stats', 'Show signal/proposal counts by skill')
+  .option('--all', 'Include approved and rejected proposals in listing')
+  .option('--dir <path>', 'Target project directory')
+  .action(async (opts: any) => {
+    const { runProposals } = await import('./commands/proposals.js');
+    await runProposals({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: list hooks - Show registered hooks from settings.json
+// NOTE: must be registered BEFORE bare 'list' so CAC matches 'list hooks' first
+cli
+  .command('list hooks', 'Show registered hooks from .claude/settings.json')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (opts: any) => {
+    const { runListHooks } = await import('./commands/list.js');
+    await runListHooks({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: list - Show installed skills and roles
+cli
+  .command('list', 'Show installed skills and roles')
+  .option('--dir <path>', 'Target project directory')
+  .option('--json', 'Output as JSON')
+  .action(async (opts: any) => {
+    const { runList } = await import('./commands/list.js');
+    await runList({ ...cli.globalCommand.options, ...opts });
+  });
+
 // Command: update - Re-install kit packages from existing metadata (no setup flow)
 cli
   .command("update", "Update installed kit packages (uses existing profile/target)")
   .option("--dir <path>", "Target project directory")
   .option("--source [path]", "Use local source repo for packages (dev mode)")
   .option("--force-download", "Skip cache and re-download release from GitHub")
+  .option("--json", "Output as JSON")
+  .option("--dry-run", "Preview changes without applying")
+  .option("--preview", "Preview changes without applying (alias for --dry-run)")
   .action(async (opts: any) => {
     const { runUpdate } = await import("./commands/update.js");
-    await runUpdate({ ...cli.globalCommand.options, ...opts });
+    await runUpdate({
+      ...cli.globalCommand.options,
+      ...opts,
+      dryRun: opts.dryRun || opts.preview,
+    });
   });
 
-// Command: upgrade - Self-update CLI to latest npm version
+// Command: upgrade - Self-update CLI and check kit content updates
 cli
-  .command("upgrade", "Upgrade epost-kit CLI to latest version")
-  .option("--check", "Only check if upgrade is available")
+  .command("upgrade", "Check and install CLI + kit content updates")
+  .option("--check", "Only check for updates, don't install")
+  .option("--no-cache", "Bypass registry cache for fresh remote check")
+  .option("--dir <path>", "Target project directory (for kit version check)")
+  .option("--json", "Output as JSON")
   .action(async (opts: any) => {
     const { runUpgrade } = await import("./commands/upgrade.js");
     await runUpgrade({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Command: repair - Auto-fix validation failures
+cli
+  .command("repair", "Auto-fix validation failures (re-runs init with --force)")
+  .option("--dir <path>", "Target project directory")
+  .option("--json", "Output as JSON")
+  .action(async (opts: any) => {
+    const { runRepair } = await import("./commands/repair.js");
+    await runRepair({ ...cli.globalCommand.options, ...opts });
   });
 
 // Command: uninstall - Remove kit
@@ -108,9 +312,16 @@ cli
   .option("--dir <path>", "Target project directory")
   .option("--keep-custom", "Keep user-modified files")
   .option("--force", "Force removal without confirmation")
+  .option("--dry-run", "Preview what would be removed without applying")
+  .option("--preview", "Preview what would be removed without applying (alias for --dry-run)")
+  .option("--json", "Output as JSON")
   .action(async (opts: any) => {
     const { runUninstall } = await import("./commands/uninstall.js");
-    await runUninstall({ ...cli.globalCommand.options, ...opts });
+    await runUninstall({
+      ...cli.globalCommand.options,
+      ...opts,
+      dryRun: opts.dryRun || opts.preview,
+    });
   });
 
 // Command: profile - Manage developer profiles
@@ -436,9 +647,24 @@ function findSuggestions(word: string, candidates: string[]): string[] {
   return best;
 }
 
+// ─── JSON error serialization helper ───────────────────────────────────────
+
+function emitJsonError(code: string, message: string, exitCode: number): void {
+  process.stdout.write(
+    JSON.stringify({ type: "error", code, message, exitCode }) + "\n"
+  );
+}
+
+const isJsonMode = process.argv.includes("--json");
+
 // Error handling
 process.on("unhandledRejection", (error) => {
-  console.error("Error:", error instanceof Error ? error.message : error);
+  const message = error instanceof Error ? error.message : String(error);
+  if (isJsonMode) {
+    emitJsonError("UNHANDLED_REJECTION", message, 1);
+  } else {
+    console.error("Error:", message);
+  }
   process.exit(1);
 });
 
@@ -454,17 +680,25 @@ try {
         .map((c) => c.name)
         .filter(Boolean);
       const suggestions = findSuggestions(unknown, allCommands);
-      process.stderr.write(`error: unknown command '${unknown}' for 'epost-kit'\n`);
-      if (suggestions.length > 0) {
-        process.stderr.write(`\nDid you mean ${suggestions.length === 1 ? "this" : "one of these"}?\n`);
-        for (const s of suggestions) {
-          process.stderr.write(`        ${s}\n`);
+      if (isJsonMode) {
+        emitJsonError("UNKNOWN_COMMAND", `unknown command '${unknown}' for 'epost-kit'`, 1);
+      } else {
+        process.stderr.write(`error: unknown command '${unknown}' for 'epost-kit'\n`);
+        if (suggestions.length > 0) {
+          process.stderr.write(`\nDid you mean ${suggestions.length === 1 ? "this" : "one of these"}?\n`);
+          for (const s of suggestions) {
+            process.stderr.write(`        ${s}\n`);
+          }
         }
+        process.stderr.write(`\nRun 'epost-kit --help' for a list of all commands.\n`);
       }
-      process.stderr.write(`\nRun 'epost-kit --help' for a list of all commands.\n`);
       process.exit(1);
     }
   }
-  console.error("Error:", msg);
+  if (isJsonMode) {
+    emitJsonError("CLI_ERROR", msg, 1);
+  } else {
+    console.error("Error:", msg);
+  }
   process.exit(1);
 }

@@ -87,10 +87,13 @@ export async function runUninstall(opts: UninstallOptions): Promise<void> {
   // ── Step 3/4: Remove files ──
   logger.step(3, 4, "Removing files");
   let removed = 0;
+  const removedFiles: string[] = [];
   if (!opts.dryRun) {
-    const removeSpinner = ora('Removing files...').start();
+    const removeSpinner = opts.json ? null : ora('Removing files...').start();
     removed = await executeUninstall(projectDir, plan);
-    removeSpinner.succeed(`Removed ${removed} files`);
+    removedFiles.push(...plan.toRemove.slice(0, removed));
+    if (removeSpinner) removeSpinner.succeed(`Removed ${removed} files`);
+    else if (!opts.json) logger.info(`  Removed ${removed} files`);
 
     // Clean up empty directories
     await cleanEmptyDirs(projectDir, metadata.target);
@@ -101,12 +104,30 @@ export async function runUninstall(opts: UninstallOptions): Promise<void> {
       await unlink(metadataPath);
     }
   } else {
-    logger.info('  Dry-run mode — no files removed');
-    logger.info(`  Would remove: ${pc.yellow(plan.toRemove.length.toString())} files`);
+    if (!opts.json) {
+      logger.info('  Dry-run mode — no files removed');
+      logger.info(`  Would remove: ${pc.yellow(plan.toRemove.length.toString())} files`);
+    }
   }
 
   // ── Step 4/4: Done ──
   logger.step(4, 4, "Complete");
+
+  if (opts.json) {
+    console.log(
+      JSON.stringify(
+        {
+          removed: opts.dryRun ? [] : removedFiles,
+          preserved: plan.toPreserve,
+          dryRun: opts.dryRun ?? false,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
   if (!opts.dryRun) {
     logger.success(`Removed: ${pc.green(removed.toString())} files`);
   }

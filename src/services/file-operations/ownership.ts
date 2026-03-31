@@ -55,7 +55,7 @@ export async function writeMetadata(projectDir: string, metadata: Metadata): Pro
 /** Generate fresh metadata for new installation */
 export function generateMetadata(
   cliVersion: string,
-  target: 'claude' | 'cursor' | 'vscode',
+  target: 'claude' | 'cursor' | 'vscode' | 'export',
   kitVersion: string,
   files: Record<string, FileOwnership>,
   options?: { profile?: string; installedPackages?: string[]; source?: string }

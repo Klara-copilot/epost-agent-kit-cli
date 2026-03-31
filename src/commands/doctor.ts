@@ -43,7 +43,8 @@ function getExitCode(results: CheckResult[]): number {
 }
 
 export async function runDoctor(opts: DoctorOptions): Promise<void> {
-  const cwd = process.cwd();
+  const { resolve } = await import("node:path");
+  const cwd = opts.dir ? resolve(opts.dir) : process.cwd();
   const shouldFix = opts.fix ?? false;
   const shouldReport = opts.report ?? false;
 

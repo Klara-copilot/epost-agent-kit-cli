@@ -14,44 +14,81 @@ import type { UpdateOptions } from "@/types/commands.js";
 
 export async function runUpdate(opts: UpdateOptions): Promise<void> {
   const projectDir = opts.dir ? resolve(opts.dir) : resolve(process.cwd());
+  const isDryRun = !!(opts.dryRun || opts.preview);
+  const isJson = !!opts.json;
 
   if (opts.dir && !(await dirExists(projectDir))) {
     throw new Error(`Directory not found: ${projectDir}`);
   }
 
   // Read existing installation metadata
-  const spinner = ora("Reading installation metadata...").start();
+  const spinner = isJson ? null : ora("Reading installation metadata...").start();
   const metadata = await readMetadata(projectDir);
 
   if (!metadata) {
-    spinner.fail("No installation found");
-    console.log(
-      pc.yellow(
-        "\nℹ  Run `epost-kit init` first to set up your project.\n",
-      ),
-    );
+    spinner?.fail("No installation found");
+    if (isJson) {
+      console.log(JSON.stringify({ error: "No installation found", updated: false }, null, 2));
+    } else {
+      console.log(
+        pc.yellow(
+          "\nℹ  Run `epost-kit init` first to set up your project.\n",
+        ),
+      );
+    }
     return;
   }
 
-  spinner.succeed(
+  spinner?.succeed(
     `Found installation: profile=${pc.cyan(metadata.profile || "(custom)")}, ` +
     `target=${pc.cyan(metadata.target)}, ` +
     `packages=${pc.cyan(String(metadata.installedPackages?.length ?? 0))}`,
   );
 
-  // Show what will be updated
-  logger.info(`\n  Profile  : ${metadata.profile || "(custom)"}`);
-  logger.info(`  Target   : ${metadata.target}`);
-  logger.info(`  Packages : ${(metadata.installedPackages || []).join(", ")}`);
-  logger.info(`  Last run : ${metadata.installedAt.split("T")[0]}\n`);
-
-  // Import and run init with existing config — no prompts, clean reinstall
-  // Resolve source: explicit flag > persisted metadata source > none (GitHub download)
   const resolvedSource = opts.source ?? metadata.source;
-  if (resolvedSource) {
-    logger.info(`  Source   : ${resolvedSource} (local dev mode)`);
+
+  // ── Dry-run / preview mode ──
+  if (isDryRun) {
+    const preview = {
+      profile: metadata.profile || "(custom)",
+      target: metadata.target,
+      packages: metadata.installedPackages || [],
+      lastInstalled: metadata.installedAt?.split("T")[0] ?? null,
+      source: resolvedSource ?? null,
+      dryRun: true,
+    };
+
+    if (isJson) {
+      console.log(JSON.stringify(preview, null, 2));
+    } else {
+      console.log('');
+      console.log(pc.bold('[dry-run] Would update with:'));
+      console.log(`  Profile  : ${preview.profile}`);
+      console.log(`  Target   : ${preview.target}`);
+      console.log(`  Packages : ${preview.packages.join(", ")}`);
+      console.log(`  Last run : ${preview.lastInstalled}`);
+      if (preview.source) {
+        console.log(`  Source   : ${preview.source} (local dev mode)`);
+      }
+      console.log('');
+      logger.info('[dry-run] No changes applied.');
+    }
+    return;
   }
 
+  if (!isJson) {
+    // Show what will be updated
+    logger.info(`\n  Profile  : ${metadata.profile || "(custom)"}`);
+    logger.info(`  Target   : ${metadata.target}`);
+    logger.info(`  Packages : ${(metadata.installedPackages || []).join(", ")}`);
+    logger.info(`  Last run : ${metadata.installedAt.split("T")[0]}\n`);
+
+    if (resolvedSource) {
+      logger.info(`  Source   : ${resolvedSource} (local dev mode)`);
+    }
+  }
+
+  // Import and run init with existing config — no prompts, clean reinstall
   const { runInit } = await import("./init.js");
   await runInit({
     ...opts,
@@ -63,4 +100,13 @@ export async function runUpdate(opts: UpdateOptions): Promise<void> {
     dir: opts.dir,
     source: resolvedSource,
   });
+
+  if (isJson) {
+    console.log(JSON.stringify({
+      updated: true,
+      profile: metadata.profile || "(custom)",
+      target: metadata.target,
+      packages: metadata.installedPackages || [],
+    }, null, 2));
+  }
 }
