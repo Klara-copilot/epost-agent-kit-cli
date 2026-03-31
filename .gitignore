@@ -38,3 +38,6 @@ yarn-error.log*
 # Test artifacts
 .nyc_output/
 .claude
+
+# Local session data
+.epost-data/
