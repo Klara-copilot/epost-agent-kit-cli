@@ -14,20 +14,13 @@ Before installing ePost-Kit CLI, ensure you have:
 ### Verify Prerequisites
 
 ```bash
-# Check Node.js version
 node --version  # Should be >= v18.0.0
-
-# Check npm
 npm --version
-
-# Check GitHub CLI
 gh --version
-
-# Check GitHub authentication
 gh auth status
 ```
 
-If `gh auth status` fails, authenticate with:
+If `gh auth status` fails:
 
 ```bash
 gh auth login
@@ -35,7 +28,7 @@ gh auth login
 
 ## One-Line Installation
 
-**Note:** This repository is private. You must authenticate with GitHub CLI first: `gh auth login`
+**Note:** This repository is private. You must authenticate first: `gh auth login`
 
 ### macOS / Linux
 
@@ -55,45 +48,74 @@ $script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/instal
 gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.cmd --jq .content > %TEMP%\install-epost-b64.txt && certutil -decode %TEMP%\install-epost-b64.txt %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
 ```
 
+The installer will:
+1. Clone the CLI repo to `~/.epost-kit/cli/`
+2. Build from source (`npm install && npm run build`)
+3. Link globally (`npm link`)
+4. Verify `epost-kit --version`
+
+Re-running the installer on an existing installation does a `git pull` + rebuild instead of re-cloning.
+
 ## Verify Installation
 
-After installation completes, verify the CLI is working:
+```bash
+epost-kit --version
+epost-kit doctor
+epost-kit --help
+```
+
+## Directory Layout
+
+```
+~/.epost-kit/
+├── cli/        ← cloned CLI repo (enables git pull upgrades)
+├── packages/   ← kit data (managed by epost-kit init)
+├── profiles/   ← profiles (managed by epost-kit init)
+└── cache/      ← release cache
+```
+
+## Upgrading
 
 ```bash
-# Check version
-epost-kit --version
+epost-kit upgrade
+```
 
-# Run diagnostics
-epost-kit doctor
+This does `git pull origin master` + `npm install` + `npm run build` inside `~/.epost-kit/cli/`.
 
-# Show help
-epost-kit --help
+Options:
+- `--check` — report if update available, don't install
+- `--yes` — skip confirmation prompt
+
+**Manual upgrade:**
+
+```bash
+cd ~/.epost-kit/cli && git pull origin master && npm install && npm run build
+```
+
+## Manual Installation
+
+If the automated installer fails:
+
+```bash
+# Clone to persistent location
+gh repo clone Klara-copilot/epost-agent-kit-cli ~/.epost-kit/cli -- --branch master
+cd ~/.epost-kit/cli
+
+# Build
+npm install
+npm run build
+
+# Link globally (add sudo if permission error)
+npm link
 ```
 
 ## Troubleshooting
 
-### Issue: Node.js Version Too Old
-
-**Symptom:**
-```
-✗ Node.js version 16.x.x is too old
-Required: >= 18.0.0
-```
-
-**Solution:**
-1. Visit [nodejs.org](https://nodejs.org/)
-2. Download and install Node.js 18 LTS or newer
-3. Verify with `node --version`
-4. Re-run the installer
-
 ### Issue: GitHub CLI Not Installed
 
-**Symptom:**
 ```
-✗ GitHub CLI (gh) is not installed
+[ERR]  GitHub CLI (gh) not installed
 ```
-
-**Solution:**
 
 **macOS (Homebrew):**
 ```bash
@@ -110,318 +132,110 @@ sudo apt install gh
 winget install GitHub.cli
 ```
 
-**Windows (Chocolatey):**
-```cmd
-choco install gh
-```
-
 Or download from [cli.github.com](https://cli.github.com/)
 
-### Issue: Not Authenticated with GitHub
+### Issue: Not Authenticated
 
-**Symptom:**
 ```
-✗ Not authenticated with GitHub CLI
+[ERR]  Not authenticated with GitHub CLI
 ```
 
-**Solution:**
 ```bash
-# Authenticate with GitHub
 gh auth login
-
-# Follow the interactive prompts to:
-# 1. Select GitHub.com
-# 2. Choose HTTPS or SSH
-# 3. Authenticate via browser or token
-
-# Verify authentication
 gh auth status
 ```
 
 ### Issue: No Access to Repository
 
-**Symptom:**
 ```
-✗ Cannot access repository: Klara-copilot/epost_agent_kit
-```
-
-**Possible Causes:**
-1. **Private repository** - Request access from repository administrator
-2. **Organization membership** - Ensure you're a member of Klara-copilot organization
-3. **Network issues** - Check internet connectivity and GitHub status
-
-**Solution:**
-1. Verify you can access the repository in a browser:
-   ```
-   https://github.com/Klara-copilot/epost_agent_kit
-   ```
-2. Request organization membership if needed
-3. Verify authentication: `gh auth status`
-4. Check organization access: `gh org list`
-
-### Issue: Build Failures
-
-**Symptom:**
-```
-✗ Build failed
-npm ERR! code ELIFECYCLE
+[ERR]  Clone failed. Check your GitHub access to Klara-copilot/epost-agent-kit-cli
 ```
 
-**Possible Causes:**
-- Corrupted npm cache
-- Missing build dependencies
-- Insufficient disk space
+1. Verify you're a member of the Klara-copilot organization
+2. Check authentication: `gh auth status`
+3. Check org access: `gh org list`
 
-**Solution:**
+### Issue: Node.js Version Too Old
 
-**Clear npm cache:**
+```
+[ERR]  Node.js >= 18 required
+```
+
+Download Node.js 18 LTS or newer from [nodejs.org](https://nodejs.org/).
+
+### Issue: Permission Error on npm link
+
+```
+[ERR]  npm link failed
+```
+
+Run manually with sudo:
 ```bash
-npm cache clean --force
+cd ~/.epost-kit/cli && sudo npm link
 ```
 
-**Check disk space:**
+Or fix npm prefix permissions:
 ```bash
-df -h  # Unix/macOS
-dir    # Windows
-```
-
-**Manual build:**
-```bash
-# Clone repository
-gh repo clone Klara-copilot/epost_agent_kit
-cd epost_agent_kit/epost-agent-kit-cli
-
-# Install and build
-npm install
-npm run build
-
-# Link globally
-npm link
-# Or with sudo if permissions required
-sudo npm link
-```
-
-### Issue: Permission Errors During Install
-
-**Symptom:**
-```
-✗ Failed to install CLI globally
-npm ERR! code EACCES
-```
-
-**Solution:**
-
-**Option 1: Use sudo (macOS/Linux):**
-```bash
-sudo npm link
-```
-
-**Option 2: Fix npm permissions (recommended):**
-```bash
-# Configure npm to use user directory
 mkdir ~/.npm-global
 npm config set prefix '~/.npm-global'
-
-# Add to PATH (add to ~/.bashrc or ~/.zshrc)
-export PATH=~/.npm-global/bin:$PATH
-
-# Reload shell configuration
-source ~/.bashrc  # or source ~/.zshrc
-```
-
-**Option 3: Use package manager permissions fix:**
-```bash
-# macOS/Linux
-sudo chown -R $(whoami) $(npm config get prefix)/{lib/node_modules,bin,share}
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 ### Issue: CLI Command Not Found After Install
 
-**Symptom:**
 ```
 epost-kit: command not found
 ```
 
-**Solution:**
-
-**1. Verify npm global bin directory:**
+Check npm global bin is in PATH:
 ```bash
 npm config get prefix
+# Add <prefix>/bin to your PATH
 ```
 
-**2. Check PATH includes npm bin:**
-```bash
-echo $PATH  # Unix/macOS
-echo %PATH% # Windows
+Restart your terminal after updating PATH.
+
+### Issue: Build Failures
+
+```
+[ERR]  npm run build failed
 ```
 
-**3. Add npm bin to PATH:**
-
-**macOS/Linux (Bash):**
+Clear npm cache and retry:
 ```bash
-echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-**macOS/Linux (Zsh):**
-```bash
-echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-**Windows:**
-1. Open System Properties → Advanced → Environment Variables
-2. Edit user PATH variable
-3. Add: `%APPDATA%\npm`
-4. Restart terminal
-
-**4. Restart terminal and verify:**
-```bash
-epost-kit --version
-```
-
-### Issue: Installation Hangs or Times Out
-
-**Symptom:**
-- Installer stuck on "Cloning repository..."
-- Installer stuck on "Installing dependencies..."
-
-**Solution:**
-
-**Check network connectivity:**
-```bash
-ping github.com
-curl -I https://registry.npmjs.org
-```
-
-**Use verbose mode for debugging:**
-```bash
-# Download and run with debug output
-curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/main/epost-agent-kit-cli/install/install.sh > install.sh
-bash -x install.sh
-```
-
-**Configure npm proxy (if behind corporate firewall):**
-```bash
-npm config set proxy http://proxy.company.com:8080
-npm config set https-proxy http://proxy.company.com:8080
-```
-
-## Manual Installation
-
-If the automated installer fails, install manually:
-
-### Step 1: Clone Repository
-
-```bash
-gh repo clone Klara-copilot/epost_agent_kit
-cd epost_agent_kit/epost-agent-kit-cli
-```
-
-### Step 2: Install Dependencies
-
-```bash
-npm install
-```
-
-### Step 3: Build Project
-
-```bash
-npm run build
-```
-
-### Step 4: Link CLI Globally
-
-```bash
-# Try without sudo first
-npm link
-
-# If permission error, use sudo
-sudo npm link
-```
-
-### Step 5: Verify Installation
-
-```bash
-epost-kit --version
-epost-kit doctor
+npm cache clean --force
+cd ~/.epost-kit/cli && npm install && npm run build
 ```
 
 ## Uninstallation
 
-To remove ePost-Kit CLI:
-
 ```bash
-# Unlink global CLI
-npm unlink -g @klara-copilot/epost-kit
+# Remove global link
+npm unlink -g epost-kit
 
-# Or manually remove link
-rm $(which epost-kit)
-
-# Clean up global packages
-npm ls -g --depth=0
+# Remove install directory
+rm -rf ~/.epost-kit/cli
 ```
 
 ## Next Steps
 
-After successful installation:
+After installation:
 
-1. **Run diagnostics:**
-   ```bash
-   epost-kit doctor
-   ```
-
-2. **Onboard your project:**
-   ```bash
-   epost-kit onboard
-   ```
-
-3. **Explore commands:**
-   ```bash
-   epost-kit --help
-   ```
-
-4. **Initialize in existing project:**
-   ```bash
-   cd your-project
-   epost-kit init
-   ```
-
-## Getting Help
-
-- **CLI Help:** `epost-kit --help`
-- **Command Help:** `epost-kit <command> --help`
-- **Debug Mode:** `epost-kit --verbose <command>`
-- **GitHub Issues:** [Report installation issues](https://github.com/Klara-copilot/epost_agent_kit/issues)
+```bash
+epost-kit init      # Set up kit in your project
+epost-kit doctor    # Check installation health
+epost-kit --help    # Explore commands
+```
 
 ## System Requirements
 
-| Requirement | Minimum | Recommended |
-|-------------|---------|-------------|
-| Node.js | 18.0.0 | 20.x LTS |
-| npm | 9.0.0 | Latest |
-| RAM | 512MB | 1GB+ |
-| Disk Space | 100MB | 500MB |
-| OS | macOS 10.15+ / Ubuntu 20.04+ / Windows 10+ | Latest versions |
-
-## Supported Platforms
-
-- **macOS:** 10.15 (Catalina) and newer
-- **Linux:** Ubuntu 20.04+, Debian 10+, Fedora 33+, RHEL 8+
-- **Windows:** 10, 11 (PowerShell 5.1+ or PowerShell Core 7+)
-
-## Security Considerations
-
-- Installation scripts are served over HTTPS
-- GitHub CLI handles authentication securely
-- Scripts verify repository access before installation
-- Build process runs in temporary directory
-- No credentials are stored by installer
-
-## Contributing
-
-For installation script improvements, see [Contributing Guide](../README.md#contributing).
+| Requirement | Minimum |
+|-------------|---------|
+| Node.js | 18.0.0 |
+| npm | 9.0.0 |
+| OS | macOS 10.15+ / Ubuntu 20.04+ / Windows 10+ |
 
 ---
 
-**Created by:** Phuong Doan | **Last Updated:** 2026-02-12
+**Last Updated:** 2026-03-31
