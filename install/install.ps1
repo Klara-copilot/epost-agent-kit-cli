@@ -1,116 +1,146 @@
 # ============================================================================
-# epost_agent_kit installer for Windows (PowerShell)
+# epost-kit CLI installer for Windows (PowerShell)
 # ============================================================================
-# Downloads the latest release from GitHub and installs epost-kit packages.
+# Clones the CLI repo to ~/.epost-kit/cli/, builds, and links globally.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #
 # Requirements:
-#   - PowerShell 5.1+
-#   - Node.js >=18.0.0 (for epost-kit CLI)
+#   - GitHub CLI (gh), authenticated
+#   - Node.js >= 18.0.0
+#   - npm
 # ============================================================================
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "Klara-copilot/epost_agent_kit"
-$VersionUrl = "https://api.github.com/repos/$Repo/releases/latest"
-$InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { Join-Path $env:USERPROFILE ".epost" }
-$ExtractDir = Join-Path $env:TEMP "epost_install_$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
+$CliRepo    = "Klara-copilot/epost-agent-kit-cli"
+$CliBranch  = "master"
+$InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { Join-Path $env:USERPROFILE ".epost-kit" }
+$CliDir     = Join-Path $InstallDir "cli"
 
-function Write-Info  { param([string]$Msg) Write-Host "[INFO] $Msg" -ForegroundColor Cyan }
-function Write-Ok    { param([string]$Msg) Write-Host "[OK]   $Msg" -ForegroundColor Green }
-function Write-Err   { param([string]$Msg) Write-Host "[ERR]  $Msg" -ForegroundColor Red }
-function Write-Warn  { param([string]$Msg) Write-Host "[WARN] $Msg" -ForegroundColor Yellow }
+function Write-Info { param([string]$Msg) Write-Host "[INFO] $Msg" -ForegroundColor Cyan }
+function Write-Ok   { param([string]$Msg) Write-Host "[OK]   $Msg" -ForegroundColor Green }
+function Write-Err  { param([string]$Msg) Write-Host "[ERR]  $Msg" -ForegroundColor Red }
+function Write-Warn { param([string]$Msg) Write-Host "[WARN] $Msg" -ForegroundColor Yellow }
 
-try {
-    # ========================================================================
-    # 1. Get latest release download URL
-    # ========================================================================
+# ============================================================================
+# 1. Prerequisite checks
+# ============================================================================
 
-    Write-Info "Fetching latest release info from GitHub..."
+Write-Info "Checking prerequisites..."
 
-    $Response = Invoke-WebRequest -Uri $VersionUrl -UseBasicParsing
-    $ReleaseData = $Response.Content | ConvertFrom-Json
-    $Asset = $ReleaseData.assets | Where-Object { $_.name -like "*.tar.gz" } | Select-Object -First 1
+# Check gh CLI
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    Write-Err "GitHub CLI (gh) not installed. See: https://cli.github.com/"
+    exit 1
+}
 
-    if (-not $Asset) {
-        Write-Err "Failed to find .tar.gz asset in latest release"
-        Write-Err "Check: https://github.com/$Repo/releases/latest"
+# Check gh auth
+gh auth status 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "Not authenticated with GitHub CLI. Run: gh auth login"
+    exit 1
+}
+
+# Check node >= 18
+$nodeOutput = node --version 2>$null
+if (-not $nodeOutput) {
+    Write-Err "Node.js not installed. Required: >= 18. Install from: https://nodejs.org/"
+    exit 1
+}
+$nodeVersion = $nodeOutput -replace 'v', ''
+$nodeMajor   = [int]($nodeVersion -split '\.')[0]
+if ($nodeMajor -lt 18) {
+    Write-Err "Node.js >= 18 required (found: v$nodeVersion). Upgrade at: https://nodejs.org/"
+    exit 1
+}
+
+# Check npm
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+    Write-Err "npm not found"
+    exit 1
+}
+
+Write-Ok "Prerequisites OK (node v$nodeVersion)"
+
+# ============================================================================
+# 2. Clone or update CLI repo to persistent location
+# ============================================================================
+
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+
+if (Test-Path (Join-Path $CliDir ".git")) {
+    Write-Info "Existing installation found at $CliDir — updating..."
+    Set-Location $CliDir
+    git pull origin $CliBranch
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "git pull failed. Try re-running the installer."
         exit 1
     }
-
-    $ReleaseUrl = $Asset.browser_download_url
-    $Artifact = $Asset.name
-    Write-Ok "Found release: $Artifact"
-
-    # ========================================================================
-    # 2. Download artifact
-    # ========================================================================
-
-    Write-Info "Downloading $Artifact..."
-    New-Item -ItemType Directory -Force -Path $ExtractDir | Out-Null
-    $DownloadPath = Join-Path $ExtractDir $Artifact
-    Invoke-WebRequest -Uri $ReleaseUrl -OutFile $DownloadPath
-    Write-Ok "Downloaded: $Artifact"
-
-    # ========================================================================
-    # 3. Extract
-    # ========================================================================
-
-    Write-Info "Extracting..."
-    # tar is available on Windows 10+ (build 17063+)
-    tar xzf $DownloadPath -C $ExtractDir
-
-    $ExtractedDir = Get-ChildItem -Directory -Path $ExtractDir -Filter "epost_agent_kit-*" | Select-Object -First 1
-
-    if (-not $ExtractedDir) {
-        Write-Err "Could not find extracted directory (expected epost_agent_kit-X.Y.Z/)"
+} else {
+    Write-Info "Cloning CLI repository to $CliDir..."
+    gh repo clone $CliRepo $CliDir -- --branch $CliBranch
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "Clone failed. Check your GitHub access to $CliRepo"
         exit 1
-    }
-
-    Write-Ok "Extracted: $($ExtractedDir.Name)"
-
-    # ========================================================================
-    # 4. Install
-    # ========================================================================
-
-    Write-Info "Installing to $InstallDir..."
-    New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-
-    Copy-Item -Path "$($ExtractedDir.FullName)\packages" -Destination $InstallDir -Recurse -Force
-    Copy-Item -Path "$($ExtractedDir.FullName)\.epost-metadata.json" -Destination $InstallDir -Force
-
-    if (Test-Path "$($ExtractedDir.FullName)\profiles") {
-        Copy-Item -Path "$($ExtractedDir.FullName)\profiles" -Destination $InstallDir -Recurse -Force
-    }
-    if (Test-Path "$($ExtractedDir.FullName)\templates") {
-        Copy-Item -Path "$($ExtractedDir.FullName)\templates" -Destination $InstallDir -Recurse -Force
-    }
-
-    Write-Ok "Installed to $InstallDir"
-
-    # ========================================================================
-    # 5. Done
-    # ========================================================================
-
-    Write-Host ""
-    Write-Host "Installation complete!" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "  Next steps:" -ForegroundColor Cyan
-    Write-Host "    Install the CLI globally:"
-    Write-Host "      npm install -g epost-agent-kit-cli"
-    Write-Host ""
-    Write-Host "    Or use via npx:"
-    Write-Host "      npx epost-agent-kit-cli init"
-    Write-Host ""
-    Write-Host "    Then run in your project:"
-    Write-Host "      epost-kit init"
-    Write-Host ""
-
-} finally {
-    # Cleanup temp dir
-    if (Test-Path $ExtractDir) {
-        Remove-Item -Path $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+Write-Ok "Repository ready"
+
+# ============================================================================
+# 3. Build
+# ============================================================================
+
+Set-Location $CliDir
+
+Write-Info "Installing dependencies..."
+npm install
+if ($LASTEXITCODE -ne 0) { Write-Err "npm install failed"; exit 1 }
+
+Write-Info "Building..."
+npm run build
+if ($LASTEXITCODE -ne 0) { Write-Err "npm run build failed"; exit 1 }
+
+Write-Ok "Build complete"
+
+# ============================================================================
+# 4. Link globally
+# ============================================================================
+
+Write-Info "Linking CLI globally..."
+npm link
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "npm link failed. Run manually:"
+    Write-Err "  cd $CliDir"
+    Write-Err "  npm link"
+    exit 1
+}
+
+Write-Ok "CLI linked globally"
+
+# ============================================================================
+# 5. Verify installation
+# ============================================================================
+
+$versionOutput = epost-kit --version 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $versionOutput) {
+    Write-Err "Verification failed — epost-kit not found in PATH"
+    Write-Err "Restart your terminal or add npm bin to PATH."
+    exit 1
+}
+
+Write-Ok "Installed: epost-kit $versionOutput"
+
+# ============================================================================
+# 6. Done
+# ============================================================================
+
+Write-Host ""
+Write-Host "Installation complete!" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Next steps:" -ForegroundColor Cyan
+Write-Host "    epost-kit init     # Set up kit in your project"
+Write-Host "    epost-kit doctor   # Check installation health"
+Write-Host ""

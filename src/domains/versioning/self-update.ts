@@ -1,17 +1,31 @@
 /**
  * CLI self-update functionality
- * Detects package manager, checks for updates, fetches changelog
+ * Uses git pull + rebuild from ~/.epost-kit/cli/ (installed via install script)
  */
 
 import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
-import { APP_NAME } from '@/shared/constants.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export type PackageManager = 'npm' | 'pnpm' | 'yarn';
+/** Get the persistent CLI install directory */
+function getCliDir(): string {
+  return join(homedir(), '.epost-kit', 'cli');
+}
+
+/** Assert CLI was installed via install script (has a .git directory) */
+function assertGitInstall(cliDir: string): void {
+  if (!existsSync(join(cliDir, '.git'))) {
+    throw new Error(
+      `CLI not installed via install script (expected git repo at ${cliDir}).\n` +
+      `Run the install script to set up: install/install.sh`
+    );
+  }
+}
 
 /** Read current CLI version from package.json */
 export async function getCurrentVersion(): Promise<string> {
@@ -25,95 +39,69 @@ export async function getCurrentVersion(): Promise<string> {
   }
 }
 
-/** Fetch latest version from npm registry */
-export async function getLatestVersion(): Promise<string> {
-  try {
-    const result = await execa('npm', ['view', APP_NAME, 'version']);
-    return result.stdout.trim();
-  } catch (error) {
-    throw new Error(`Failed to fetch latest version: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+/** Get short git SHA for local HEAD in install dir */
+async function getLocalSha(cliDir: string): Promise<string> {
+  const result = await execa('git', ['rev-parse', '--short', 'HEAD'], { cwd: cliDir });
+  return result.stdout.trim();
 }
 
-/** Check if update is available */
+/** Fetch origin and return short SHA of origin/master */
+async function getRemoteSha(cliDir: string): Promise<string> {
+  await execa('git', ['fetch', 'origin', 'master'], { cwd: cliDir });
+  const result = await execa('git', ['rev-parse', '--short', 'origin/master'], { cwd: cliDir });
+  return result.stdout.trim();
+}
+
+/** Check if update is available by comparing local vs remote git SHAs */
 export async function checkForUpdate(): Promise<{
   current: string;
   latest: string;
   updateAvailable: boolean;
 }> {
-  const current = await getCurrentVersion();
-  const latest = await getLatestVersion();
+  const cliDir = getCliDir();
+  assertGitInstall(cliDir);
+
+  const current = await getLocalSha(cliDir);
+  const latest = await getRemoteSha(cliDir);
   const updateAvailable = current !== latest;
   return { current, latest, updateAvailable };
 }
 
-/** Detect package manager used to install CLI */
-export async function detectPackageManager(): Promise<PackageManager> {
+/** Execute update: git pull + npm install + npm run build */
+export async function executeUpdate(): Promise<void> {
+  const cliDir = getCliDir();
+  assertGitInstall(cliDir);
+
+  await execa('git', ['pull', 'origin', 'master'], { cwd: cliDir, stdio: 'inherit' });
+  await execa('npm', ['install'], { cwd: cliDir, stdio: 'inherit' });
+  await execa('npm', ['run', 'build'], { cwd: cliDir, stdio: 'inherit' });
+}
+
+/** Get changelog preview via git log between two SHAs */
+export async function getChangelogPreview(fromSha: string, toSha: string): Promise<string> {
+  const cliDir = getCliDir();
   try {
-    // Try to find global installation path (for future use)
-    await execa('npm', ['prefix', '-g']);
-
-    // Check if installed via pnpm
-    try {
-      await execa('pnpm', ['list', '-g', APP_NAME]);
-      return 'pnpm';
-    } catch {
-      // Not installed via pnpm
-    }
-
-    // Check if installed via yarn
-    try {
-      await execa('yarn', ['global', 'list']);
-      return 'yarn';
-    } catch {
-      // Not installed via yarn
-    }
-
-    // Default to npm
-    return 'npm';
+    const result = await execa(
+      'git',
+      ['log', '--oneline', `${fromSha}..${toSha}`],
+      { cwd: cliDir }
+    );
+    const commits = result.stdout.trim();
+    return commits
+      ? `Changes since ${fromSha}:\n${commits}`
+      : `Update available: ${fromSha} → ${toSha}`;
   } catch {
-    return 'npm'; // Fallback to npm
+    return `Update available: ${fromSha} → ${toSha}`;
   }
 }
 
-/** Get update command for package manager */
-export function getUpdateCommand(pm: PackageManager): string {
-  switch (pm) {
-    case 'npm':
-      return `npm install -g ${APP_NAME}@latest`;
-    case 'pnpm':
-      return `pnpm add -g ${APP_NAME}@latest`;
-    case 'yarn':
-      return `yarn global add ${APP_NAME}@latest`;
-  }
-}
-
-/** Execute update via package manager */
-export async function executeUpdate(pm: PackageManager): Promise<void> {
-  const args = pm === 'npm'
-    ? ['install', '-g', `${APP_NAME}@latest`]
-    : pm === 'pnpm'
-    ? ['add', '-g', `${APP_NAME}@latest`]
-    : ['global', 'add', `${APP_NAME}@latest`];
-
-  await execa(pm, args, { stdio: 'inherit' });
-}
-
-/** Verify update succeeded by checking version */
-export async function verifyUpdate(expectedVersion: string): Promise<boolean> {
+/** Verify update succeeded by checking local SHA matches expected */
+export async function verifyUpdate(expectedSha: string): Promise<boolean> {
   try {
-    const current = await getCurrentVersion();
-    return current === expectedVersion;
+    const cliDir = getCliDir();
+    const current = await getLocalSha(cliDir);
+    return current === expectedSha;
   } catch {
     return false;
   }
-}
-
-/** Fetch changelog preview from GitHub (simplified version) */
-export async function getChangelogPreview(fromVersion: string, toVersion: string): Promise<string> {
-  // For now, return a placeholder. Full implementation would:
-  // 1. Fetch GitHub releases API
-  // 2. Parse release notes between versions
-  // 3. Format into readable preview
-  return `Update available: ${fromVersion} → ${toVersion}\n\nSee full changelog at: https://github.com/Klara-copilot/epost_agent_kit/releases`;
 }

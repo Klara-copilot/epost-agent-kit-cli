@@ -2,24 +2,25 @@
 set -e
 
 # ============================================================================
-# epost_agent_kit installer for macOS/Linux
+# epost-kit CLI installer for macOS/Linux
 # ============================================================================
-# Downloads the latest release from GitHub and installs epost-kit packages.
+# Clones the CLI repo to ~/.epost-kit/cli/, builds, and links globally.
 #
 # Requirements:
-#   - curl
-#   - tar
-#   - Node.js >=18.0.0 (for epost-kit CLI)
+#   - GitHub CLI (gh), authenticated
+#   - Node.js >= 18.0.0
+#   - npm
 #
 # Usage:
-#   bash install-macos.sh
-#   bash <(curl -s https://raw.githubusercontent.com/Klara-copilot/epost_agent_kit/master/install-macos.sh)
+#   bash install.sh
+#   gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh \
+#     --jq .content | base64 -d | bash
 # ============================================================================
 
-REPO="Klara-copilot/epost_agent_kit"
-VERSION_URL="https://api.github.com/repos/${REPO}/releases/latest"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.epost}"
-EXTRACT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/epost_install.XXXXXX")
+CLI_REPO="Klara-copilot/epost-agent-kit-cli"
+CLI_BRANCH="master"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.epost-kit}"
+CLI_DIR="$INSTALL_DIR/cli"
 
 # ANSI color codes
 RED='\033[0;31m'
@@ -30,96 +31,121 @@ NC='\033[0m'
 
 info()    { printf "${BLUE}[INFO]${NC} %s\n" "$1"; }
 success() { printf "${GREEN}[OK]${NC}   %s\n" "$1"; }
-error()   { printf "${RED}[ERR]${NC}  %s\n" "$1"; }
+error()   { printf "${RED}[ERR]${NC}  %s\n" "$1" >&2; }
 warn()    { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
 
-cleanup() {
-  rm -rf "$EXTRACT_DIR"
-}
-trap cleanup EXIT
-
 # ============================================================================
-# 1. Get latest release download URL
+# 1. Prerequisite checks
 # ============================================================================
 
-info "Fetching latest release info from GitHub..."
+info "Checking prerequisites..."
 
-RELEASE_JSON=$(curl -sf "$VERSION_URL" 2>/dev/null) || {
-  error "Failed to fetch release info from GitHub"
-  error "URL: $VERSION_URL"
+# Check gh CLI installed
+command -v gh >/dev/null 2>&1 || {
+  error "GitHub CLI (gh) not installed"
+  error "Install from: https://cli.github.com/"
   exit 1
 }
 
-RELEASE_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": *"[^"]*\.tar\.gz"' | head -1 | cut -d'"' -f4)
+# Check gh auth
+gh auth status >/dev/null 2>&1 || {
+  error "Not authenticated with GitHub CLI"
+  error "Run: gh auth login"
+  exit 1
+}
 
-if [ -z "$RELEASE_URL" ]; then
-  error "Failed to find .tar.gz download URL in latest release"
-  error "Check: https://github.com/${REPO}/releases/latest"
+# Check node >= 18
+NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//') || {
+  error "Node.js not installed. Required: >= 18. Install from: https://nodejs.org/"
+  exit 1
+}
+NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+if ! [ "$NODE_MAJOR" -ge 18 ] 2>/dev/null; then
+  error "Node.js >= 18 required (found: v${NODE_VERSION})"
+  error "Upgrade at: https://nodejs.org/"
   exit 1
 fi
 
-ARTIFACT=$(basename "$RELEASE_URL")
-success "Found release: $ARTIFACT"
-
-# ============================================================================
-# 2. Download artifact
-# ============================================================================
-
-info "Downloading $ARTIFACT..."
-curl -L -o "$EXTRACT_DIR/$ARTIFACT" "$RELEASE_URL" || {
-  error "Download failed"
-  exit 1
-}
-success "Downloaded: $ARTIFACT"
-
-# ============================================================================
-# 3. Extract
-# ============================================================================
-
-info "Extracting..."
-tar xzf "$EXTRACT_DIR/$ARTIFACT" -C "$EXTRACT_DIR" || {
-  error "Extraction failed"
+# Check npm
+command -v npm >/dev/null 2>&1 || {
+  error "npm not found"
   exit 1
 }
 
-EXTRACTED_DIR=$(ls -d "$EXTRACT_DIR/epost_agent_kit-"* 2>/dev/null | head -1)
-
-if [ -z "$EXTRACTED_DIR" ]; then
-  error "Could not find extracted directory (expected epost_agent_kit-X.Y.Z/)"
-  exit 1
-fi
-
-success "Extracted: $(basename "$EXTRACTED_DIR")"
+success "Prerequisites OK (node v${NODE_VERSION})"
 
 # ============================================================================
-# 4. Install
+# 2. Clone or update CLI repo to persistent location
 # ============================================================================
 
-info "Installing to $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"
 
-cp -r "$EXTRACTED_DIR/packages" "$INSTALL_DIR/"
-cp "$EXTRACTED_DIR/.epost-metadata.json" "$INSTALL_DIR/"
-
-if [ -d "$EXTRACTED_DIR/profiles" ]; then
-  cp -r "$EXTRACTED_DIR/profiles" "$INSTALL_DIR/"
+if [ -d "$CLI_DIR/.git" ]; then
+  info "Existing installation found at $CLI_DIR — updating..."
+  cd "$CLI_DIR"
+  git pull origin "$CLI_BRANCH" || {
+    error "git pull failed. Try re-running the installer."
+    exit 1
+  }
+else
+  info "Cloning CLI repository to $CLI_DIR..."
+  gh repo clone "$CLI_REPO" "$CLI_DIR" -- --branch "$CLI_BRANCH" || {
+    error "Clone failed. Check your GitHub access to $CLI_REPO"
+    exit 1
+  }
 fi
 
-if [ -d "$EXTRACTED_DIR/templates" ]; then
-  cp -r "$EXTRACTED_DIR/templates" "$INSTALL_DIR/"
-fi
-
-success "Installed to $INSTALL_DIR"
+success "Repository ready"
 
 # ============================================================================
-# 5. Done
+# 3. Build
+# ============================================================================
+
+cd "$CLI_DIR"
+
+info "Installing dependencies..."
+npm install || { error "npm install failed"; exit 1; }
+
+info "Building..."
+npm run build || { error "npm run build failed"; exit 1; }
+
+success "Build complete"
+
+# ============================================================================
+# 4. Link globally (with sudo fallback on EACCES)
+# ============================================================================
+
+info "Linking CLI globally..."
+npm link 2>/dev/null || {
+  warn "Permission denied, retrying with sudo..."
+  sudo npm link || {
+    error "npm link failed. Run manually:"
+    error "  cd $CLI_DIR && sudo npm link"
+    exit 1
+  }
+}
+
+success "CLI linked globally"
+
+# ============================================================================
+# 5. Verify installation
+# ============================================================================
+
+epost-kit --version >/dev/null 2>&1 || {
+  error "Verification failed — epost-kit not found in PATH"
+  error "Try restarting your terminal or check npm bin is in PATH:"
+  error "  npm config get prefix"
+  exit 1
+}
+
+INSTALLED_VERSION=$(epost-kit --version 2>/dev/null)
+success "Installed: epost-kit ${INSTALLED_VERSION}"
+
+# ============================================================================
+# 6. Done
 # ============================================================================
 
 printf "\n${GREEN}Installation complete!${NC}\n\n"
 printf "  ${BLUE}Next steps:${NC}\n"
-printf "    Install the CLI globally:\n"
-printf "      npm install -g epost-agent-kit-cli\n\n"
-printf "    Or use via npx:\n"
-printf "      npx epost-agent-kit-cli init\n\n"
-printf "    Then run in your project:\n"
-printf "      epost-kit init\n\n"
+printf "    epost-kit init     # Set up kit in your project\n"
+printf "    epost-kit doctor   # Check installation health\n\n"
