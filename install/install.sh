@@ -115,6 +115,8 @@ success "Build complete"
 # 4. Link globally (with sudo fallback on EACCES)
 # ============================================================================
 
+USED_SUDO=false
+
 info "Linking CLI globally..."
 npm link 2>/dev/null || {
   warn "Permission denied, retrying with sudo..."
@@ -123,6 +125,7 @@ npm link 2>/dev/null || {
     error "  cd $CLI_DIR && sudo npm link"
     exit 1
   }
+  USED_SUDO=true
 }
 
 success "CLI linked globally"
@@ -131,15 +134,57 @@ success "CLI linked globally"
 # 5. Verify installation
 # ============================================================================
 
-epost-kit --version >/dev/null 2>&1 || {
-  error "Verification failed — epost-kit not found in PATH"
-  error "Try restarting your terminal or check npm bin is in PATH:"
-  error "  npm config get prefix"
-  exit 1
-}
+# Resolve the bin dir that npm actually linked into
+if [ "$USED_SUDO" = true ]; then
+  NPM_BIN_DIR="$(sudo npm config get prefix)/bin"
+else
+  NPM_BIN_DIR="$(npm config get prefix)/bin"
+fi
+EPOST_BIN="$NPM_BIN_DIR/epost-kit"
 
-INSTALLED_VERSION=$(epost-kit --version 2>/dev/null)
-success "Installed: epost-kit ${INSTALLED_VERSION}"
+# Step 1: flush shell hash cache (catches stale lookup on PATH-visible installs)
+hash -r 2>/dev/null || true
+
+# Step 2: try PATH lookup first
+if command -v epost-kit >/dev/null 2>&1; then
+  INSTALLED_VERSION=$(epost-kit --version 2>/dev/null)
+  success "Installed: epost-kit ${INSTALLED_VERSION}"
+else
+  # Step 3: verify symlink at absolute path (definitive — immune to PATH issues)
+  if [ ! -f "$EPOST_BIN" ] && [ ! -L "$EPOST_BIN" ]; then
+    error "Verification failed — symlink not found at $EPOST_BIN"
+    error "Note: volta users may see this — volta intercepts npm link differently"
+    error "Try manually: cd $CLI_DIR && npm link"
+    exit 1
+  fi
+
+  success "CLI installed at: $EPOST_BIN"
+  warn "epost-kit not yet in PATH for this shell session"
+
+  # Offer to auto-append to shell rc
+  SHELL_RC=""
+  case "$SHELL" in
+    */zsh)  SHELL_RC="$HOME/.zshrc" ;;
+    */bash) SHELL_RC="$HOME/.bashrc" ;;
+  esac
+
+  if [ -n "$SHELL_RC" ]; then
+    printf "\nAdd epost-kit to PATH in %s? [Y/n] " "$SHELL_RC"
+    read -r APPEND_REPLY
+    if [ -z "$APPEND_REPLY" ] || [ "$APPEND_REPLY" = "Y" ] || [ "$APPEND_REPLY" = "y" ]; then
+      echo "" >> "$SHELL_RC"
+      echo "# epost-kit — added by installer" >> "$SHELL_RC"
+      echo "export PATH=\"$NPM_BIN_DIR:\$PATH\"" >> "$SHELL_RC"
+      success "Added to $SHELL_RC — restart terminal or run: source $SHELL_RC"
+    else
+      warn "Skipped. Add manually: export PATH=\"$NPM_BIN_DIR:\$PATH\""
+    fi
+  else
+    warn "Add to PATH: export PATH=\"$NPM_BIN_DIR:\$PATH\""
+  fi
+
+  success "Installation complete — restart terminal to use epost-kit"
+fi
 
 # ============================================================================
 # 6. Done
