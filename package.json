@@ -44,8 +44,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Klara-copilot/epost_agent_kit.git",
-    "directory": "epost-agent-cli"
+    "url": "git+https://github.com/Klara-copilot/epost-agent-kit-cli.git"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.2.0",

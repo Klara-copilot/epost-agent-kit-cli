@@ -26,9 +26,20 @@ If `gh auth status` fails:
 gh auth login
 ```
 
-## One-Line Installation
+## Supported Installation Methods
 
 **Note:** This repository is private. You must authenticate first: `gh auth login`
+These are the documented/supported install paths for this CLI today; npm-registry global install is not documented here as a supported primary entrypoint.
+
+Recommended:
+1. macOS / Linux one-line installer
+2. Windows PowerShell one-line installer
+
+Fallback:
+3. Windows Command Prompt installer wrapper
+
+Manual:
+4. Clone, build, and link locally
 
 ### macOS / Linux
 
@@ -48,11 +59,13 @@ $script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/instal
 gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.cmd --jq .content > %TEMP%\install-epost-b64.txt && certutil -decode %TEMP%\install-epost-b64.txt %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
 ```
 
-The installer will:
-1. Clone the CLI repo to `~/.epost-kit/cli/`
-2. Build from source (`npm install && npm run build`)
-3. Link globally (`npm link`)
-4. Verify `epost-kit --version`
+Note: `install.cmd` is a thin wrapper that delegates to `install.ps1`.
+
+All installer entrypoints use the same underlying flow:
+1. Clone the CLI repo to `~/.epost-kit/cli/` (or update it with `git pull` if already present)
+2. Build from source with `npm install && npm run build`
+3. Link the CLI globally with `npm link`
+4. Verify the install via `epost-kit --version`
 
 Re-running the installer on an existing installation does a `git pull` + rebuild instead of re-cloning.
 
@@ -95,6 +108,8 @@ cd ~/.epost-kit/cli && git pull origin master && npm install && npm run build
 ## Manual Installation
 
 If the automated installer fails:
+
+Use this if the scripted installer fails or if you want a transparent local install flow.
 
 ```bash
 # Clone to persistent location
