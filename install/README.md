@@ -39,7 +39,7 @@ gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh --jq 
 ### Windows (PowerShell)
 
 ```powershell
-$script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq .content | base64 -d; Invoke-Expression $script
+$script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d'; Invoke-Expression $script
 ```
 
 ### Windows (Command Prompt)
