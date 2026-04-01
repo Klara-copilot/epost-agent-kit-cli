@@ -4,13 +4,16 @@
 # Clones the CLI repo to ~/.epost-kit/cli/, builds, and links globally.
 #
 # Usage:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
+#   irm https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.ps1 | iex
 #
-#   One-liner (downloads to a temp file instead of invoking remote code inline):
-#   $temp = Join-Path $env:TEMP 'epost-kit-install.ps1'; gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d' | Set-Content -Path $temp; powershell -NoProfile -ExecutionPolicy Bypass -File $temp; Remove-Item $temp -Force
+#   Or save and run:
+#   $temp = Join-Path $env:TEMP 'epost-kit-install.ps1'
+#   irm https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.ps1 | Set-Content $temp
+#   powershell -NoProfile -ExecutionPolicy Bypass -File $temp
+#   Remove-Item $temp -Force
 #
 # Requirements:
-#   - GitHub CLI (gh), authenticated
+#   - git
 #   - Node.js >= 18.0.0
 #   - npm
 # ============================================================================
@@ -120,10 +123,6 @@ try {
         throw "PowerShell $MinimumPowerShellVersion or newer is required (found: $($PSVersionTable.PSVersion))."
     }
 
-    if (-not (Test-CommandAvailable -Name "gh")) {
-        throw "GitHub CLI (gh) not installed. See: https://cli.github.com/"
-    }
-
     if (-not (Test-CommandAvailable -Name "git")) {
         throw "git not found. Install Git from: https://git-scm.com/download/win"
     }
@@ -135,8 +134,6 @@ try {
     if (-not (Test-CommandAvailable -Name "npm")) {
         throw "npm not found. Install Node.js from: https://nodejs.org/"
     }
-
-    Invoke-NativeCommand -Description "gh auth status" -Command { gh auth status 2>&1 | Out-Null }
 
     $nodeOutput = Invoke-NativeCommand -Description "node --version" -Command { node --version 2>$null }
     if (-not $nodeOutput) {
@@ -163,7 +160,7 @@ try {
         Invoke-NativeCommand -Description "git pull" -Command { git pull origin $CliBranch }
     } else {
         Write-Info "Cloning CLI repository to $CliDir..."
-        Invoke-NativeCommand -Description "gh repo clone" -Command { gh repo clone $CliRepo $CliDir -- --branch $CliBranch }
+        Invoke-NativeCommand -Description "git clone" -Command { git clone --branch $CliBranch "https://github.com/$CliRepo.git" $CliDir }
     }
 
     Write-Ok "Repository ready"
@@ -250,6 +247,9 @@ try {
     Write-Host "  Next steps:" -ForegroundColor Cyan
     Write-Host "    epost-kit init     # Set up kit in your project"
     Write-Host "    epost-kit doctor   # Check installation health"
+    Write-Host ""
+    Write-Host "  Note: GitHub CLI (gh) is required to use 'epost-kit install'." -ForegroundColor Yellow
+    Write-Host "    Install: https://cli.github.com/ and run: gh auth login"
     Write-Host ""
 } catch {
     Write-Err $_.Exception.Message

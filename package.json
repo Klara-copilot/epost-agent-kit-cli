@@ -10,7 +10,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc && tsc-alias && chmod +x dist/cli.js",
+    "build": "tsc && tsc-alias && node -e \"if(process.platform!=='win32')require('fs').chmodSync('dist/cli.js',0o755)\"",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
