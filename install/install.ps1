@@ -6,6 +6,9 @@
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #
+#   One-liner (cross-platform, no base64 dependency):
+#   $script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d'; Invoke-Expression $script
+#
 # Requirements:
 #   - GitHub CLI (gh), authenticated
 #   - Node.js >= 18.0.0
