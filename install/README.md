@@ -50,7 +50,7 @@ gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh --jq 
 ### Windows (PowerShell)
 
 ```powershell
-$script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d'; Invoke-Expression $script
+$temp = Join-Path $env:TEMP 'epost-kit-install.ps1'; gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d' | Set-Content -Path $temp; powershell -NoProfile -ExecutionPolicy Bypass -File $temp; Remove-Item $temp -Force
 ```
 
 ### Windows (Command Prompt)
