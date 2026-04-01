@@ -17,10 +17,15 @@ gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh --jq 
 
 **Windows (PowerShell):**
 ```powershell
-$script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq .content | base64 -d; Invoke-Expression $script
+$script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d'; Invoke-Expression $script
 ```
 
-See [install/README.md](./install/README.md) for manual installation and troubleshooting.
+**Windows (Command Prompt, fallback):**
+```cmd
+gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.cmd --jq .content > %TEMP%\install-epost-b64.txt && certutil -decode %TEMP%\install-epost-b64.txt %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
+```
+
+For manual installation and troubleshooting, see [install/README.md](./install/README.md).
 
 ---
 
@@ -312,6 +317,8 @@ Kit config is stored in `<installDir>/.epost-kit.json`. Edit via `epost-kit conf
 ---
 
 ## Development
+
+Local development setup for contributors working from a checkout of this CLI:
 
 ```bash
 git clone <repo>
