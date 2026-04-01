@@ -123,7 +123,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Run CMD installation script
-        run: cmd /c "install\install.cmd"
+        # install.cmd is a standalone downloader — not testable from checkout.
+        # Run install.ps1 directly (same underlying flow install.cmd invokes).
+        run: powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File install/install.ps1
 
       - name: Verify CLI is installed
         run: |
