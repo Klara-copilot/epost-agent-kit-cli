@@ -8,27 +8,22 @@ Before installing ePost-Kit CLI, ensure you have:
 
 - **Node.js >= 18.0.0** - [Download from nodejs.org](https://nodejs.org/)
 - **npm** - Included with Node.js installation
-- **GitHub CLI (gh)** - [Installation instructions](https://cli.github.com/)
-- **GitHub Authentication** - Active GitHub session with repository access
+- **git** - [Download from git-scm.com](https://git-scm.com/)
+- **curl** - Pre-installed on macOS/Linux; built-in on Windows 10+
+
+Note: GitHub CLI (gh) is required to use `epost-kit install` (downloads kit content from GitHub).
+Install gh after epost-kit is set up: https://cli.github.com/
 
 ### Verify Prerequisites
 
 ```bash
 node --version  # Should be >= v18.0.0
 npm --version
-gh --version
-gh auth status
-```
-
-If `gh auth status` fails:
-
-```bash
-gh auth login
+git --version
 ```
 
 ## Supported Installation Methods
 
-**Note:** This repository is private. You must authenticate first: `gh auth login`
 These are the documented/supported install paths for this CLI today; npm-registry global install is not documented here as a supported primary entrypoint.
 
 Recommended:
@@ -41,25 +36,25 @@ Fallback:
 Manual:
 4. Clone, build, and link locally
 
-### macOS / Linux
+### macOS / Linux / WSL
 
 ```bash
-gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh --jq .content | base64 -d | bash
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.sh | bash
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-$temp = Join-Path $env:TEMP 'epost-kit-install.ps1'; gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d' | Set-Content -Path $temp; powershell -NoProfile -ExecutionPolicy Bypass -File $temp; Remove-Item $temp -Force
+irm https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.ps1 | iex
 ```
 
 ### Windows (Command Prompt)
 
 ```cmd
-gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.cmd --jq .content > %TEMP%\install-epost-b64.txt && certutil -decode %TEMP%\install-epost-b64.txt %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.cmd -o "%TEMP%\epost-kit-install.cmd" && "%TEMP%\epost-kit-install.cmd" && del "%TEMP%\epost-kit-install.cmd"
 ```
 
-Note: `install.cmd` is a thin wrapper that delegates to `install.ps1`.
+Note: `install.cmd` downloads and runs `install.ps1` automatically.
 
 All installer entrypoints use the same underlying flow:
 1. Clone the CLI repo to `~/.epost-kit/cli/` (or update it with `git pull` if already present)
@@ -81,10 +76,10 @@ epost-kit --help
 
 ```
 ~/.epost-kit/
-├── cli/        ← cloned CLI repo (enables git pull upgrades)
-├── packages/   ← kit data (managed by epost-kit init)
-├── profiles/   ← profiles (managed by epost-kit init)
-└── cache/      ← release cache
+├── cli/        <- cloned CLI repo (enables git pull upgrades)
+├── packages/   <- kit data (managed by epost-kit init)
+├── profiles/   <- profiles (managed by epost-kit init)
+└── cache/      <- release cache
 ```
 
 ## Upgrading
@@ -113,7 +108,7 @@ Use this if the scripted installer fails or if you want a transparent local inst
 
 ```bash
 # Clone to persistent location
-gh repo clone Klara-copilot/epost-agent-kit-cli ~/.epost-kit/cli -- --branch master
+git clone --branch master https://github.com/Klara-copilot/epost-agent-kit-cli.git ~/.epost-kit/cli
 cd ~/.epost-kit/cli
 
 # Build
@@ -125,50 +120,6 @@ npm link
 ```
 
 ## Troubleshooting
-
-### Issue: GitHub CLI Not Installed
-
-```
-[ERR]  GitHub CLI (gh) not installed
-```
-
-**macOS (Homebrew):**
-```bash
-brew install gh
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install gh
-```
-
-**Windows (Winget):**
-```cmd
-winget install GitHub.cli
-```
-
-Or download from [cli.github.com](https://cli.github.com/)
-
-### Issue: Not Authenticated
-
-```
-[ERR]  Not authenticated with GitHub CLI
-```
-
-```bash
-gh auth login
-gh auth status
-```
-
-### Issue: No Access to Repository
-
-```
-[ERR]  Clone failed. Check your GitHub access to Klara-copilot/epost-agent-kit-cli
-```
-
-1. Verify you're a member of the Klara-copilot organization
-2. Check authentication: `gh auth status`
-3. Check org access: `gh org list`
 
 ### Issue: Node.js Version Too Old
 
@@ -253,4 +204,4 @@ epost-kit --help    # Explore commands
 
 ---
 
-**Last Updated:** 2026-03-31
+**Last Updated:** 2026-04-01

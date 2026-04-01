@@ -34,8 +34,6 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         node-version: [18, 20]
     runs-on: ${{ matrix.os }}
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -72,8 +70,6 @@ jobs:
       matrix:
         node-version: [18, 20]
     runs-on: windows-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -116,8 +112,6 @@ jobs:
       matrix:
         node-version: [18, 20]
     runs-on: windows-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -203,25 +197,68 @@ jobs:
           fi
           echo "PS1 scripts are pure ASCII"
 
-      - name: Validate installation URLs in README
+      - name: Validate installation one-liners in README
         run: |
-          expected_repo="Klara-copilot/epost-agent-kit-cli"
+          RAW_BASE="https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install"
 
-          if ! grep -q "$expected_repo" README.md; then
-            echo "ERROR: README.md missing correct repository URL"
+          # Check curl one-liner for macOS/Linux
+          if ! grep -q "curl -fsSL ${RAW_BASE}/install.sh" README.md; then
+            echo "ERROR: README.md missing curl one-liner for macOS/Linux"
+            exit 1
+          fi
+          echo "macOS/Linux one-liner OK"
+
+          # Check irm one-liner for Windows PS
+          if ! grep -q "irm ${RAW_BASE}/install.ps1" README.md; then
+            echo "ERROR: README.md missing irm one-liner for Windows PS"
+            exit 1
+          fi
+          echo "Windows PowerShell one-liner OK"
+
+          # Ensure no old gh api one-liners remain
+          if grep -q "gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install" README.md; then
+            echo "ERROR: README.md still contains old gh api one-liner"
+            exit 1
+          fi
+          echo "No stale gh api one-liners found"
+
+          # Same checks for install/README.md
+          if ! grep -q "curl -fsSL ${RAW_BASE}/install.sh" install/README.md; then
+            echo "ERROR: install/README.md missing curl one-liner for macOS/Linux"
             exit 1
           fi
 
-          if ! grep -q "$expected_repo" install/README.md; then
-            echo "ERROR: install/README.md missing correct repository URL"
+          if ! grep -q "irm ${RAW_BASE}/install.ps1" install/README.md; then
+            echo "ERROR: install/README.md missing irm one-liner for Windows PS"
             exit 1
           fi
 
-          echo "✓ Repository URLs are correct"
+          if grep -q "gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install" install/README.md; then
+            echo "ERROR: install/README.md still contains old gh api one-liner"
+            exit 1
+          fi
+          echo "install/README.md one-liners OK"
+
+  verify-url-accessible:
+    name: Verify Raw GitHub URLs Are Publicly Accessible
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check raw install URLs are publicly accessible
+        run: |
+          RAW_BASE="https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install"
+          for url in "${RAW_BASE}/install.sh" "${RAW_BASE}/install.ps1" "${RAW_BASE}/install.cmd"; do
+            status=$(curl -o /dev/null -s -w "%{http_code}" "$url")
+            if [ "$status" != "200" ]; then
+              echo "ERROR: $url returned HTTP $status (expected 200)"
+              exit 1
+            fi
+            echo "OK: $url ($status)"
+          done
 
   report-results:
     name: Report Test Results
-    needs: [test-unix-install, test-windows-powershell, test-windows-cmd, verify-documentation]
+    needs: [test-unix-install, test-windows-powershell, test-windows-cmd, verify-documentation, verify-url-accessible]
     runs-on: ubuntu-latest
     if: always()
 
@@ -236,3 +273,4 @@ jobs:
           echo "| Windows (PowerShell) | ${{ needs.test-windows-powershell.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Windows (CMD) | ${{ needs.test-windows-cmd.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation | ${{ needs.verify-documentation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL Accessibility | ${{ needs.verify-url-accessible.result }} |" >> $GITHUB_STEP_SUMMARY

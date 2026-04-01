@@ -8,21 +8,23 @@ Distribution CLI for epost-agent-kit — installs and manages the multi-IDE AI a
 
 ## Installation
 
-**Prerequisite:** GitHub CLI authenticated (`gh auth login`)
+**Prerequisites:** Node.js >= 18, git, curl (macOS/Linux) or PowerShell 5.1+ (Windows)
 
-**macOS / Linux:**
+Note: GitHub CLI (gh) is required after install to use `epost-kit install`.
+
+**macOS / Linux / WSL:**
 ```bash
-gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh --jq .content | base64 -d | bash
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-$temp = Join-Path $env:TEMP 'epost-kit-install.ps1'; gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq '.content | @base64d' | Set-Content -Path $temp; powershell -NoProfile -ExecutionPolicy Bypass -File $temp; Remove-Item $temp -Force
+irm https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.ps1 | iex
 ```
 
 **Windows (Command Prompt, fallback):**
 ```cmd
-gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.cmd --jq .content > %TEMP%\install-epost-b64.txt && certutil -decode %TEMP%\install-epost-b64.txt %TEMP%\install-epost.cmd && %TEMP%\install-epost.cmd
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.cmd -o "%TEMP%\epost-kit-install.cmd" && "%TEMP%\epost-kit-install.cmd" && del "%TEMP%\epost-kit-install.cmd"
 ```
 
 For manual installation and troubleshooting, see [install/README.md](./install/README.md).
