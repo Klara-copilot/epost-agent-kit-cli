@@ -195,6 +195,14 @@ jobs:
           fi
           echo "✓ install.sh is executable"
 
+      - name: Check PS1 scripts are pure ASCII
+        run: |
+          if grep -rP '[\x80-\xFF]' install/*.ps1; then
+            echo "ERROR: Non-ASCII bytes found in PS1 scripts - use ASCII only"
+            exit 1
+          fi
+          echo "PS1 scripts are pure ASCII"
+
       - name: Validate installation URLs in README
         run: |
           expected_repo="Klara-copilot/epost-agent-kit-cli"
