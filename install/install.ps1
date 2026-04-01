@@ -147,19 +147,25 @@ if ($LASTEXITCODE -eq 0 -and $versionOutput) {
 } else {
     Write-Warn "epost-kit not yet in PATH for this session."
 
-    # Offer to auto-append to PowerShell profile
-    $reply = Read-Host "Add epost-kit to PATH in `$PROFILE? [Y/n]"
-    if ($reply -eq "" -or $reply -match "^[Yy]$") {
-        if (-not (Test-Path (Split-Path $PROFILE))) {
-            New-Item -ItemType Directory -Path (Split-Path $PROFILE) -Force | Out-Null
-        }
-        Add-Content -Path $PROFILE -Value ""
-        Add-Content -Path $PROFILE -Value "# epost-kit — added by installer"
-        Add-Content -Path $PROFILE -Value "`$env:PATH += `";$NpmPrefix`""
-        Write-Ok "Added to `$PROFILE — restart terminal or run: . `$PROFILE"
+    if ($env:CI) {
+        # Non-interactive in CI — just print instructions
+        Write-Warn "CI environment detected. Add manually to PATH:"
+        Write-Warn ('  $env:PATH += ";' + $NpmPrefix + '"')
     } else {
-        Write-Warn "Skipped. Add manually to `$PROFILE:"
-        Write-Warn "  `$env:PATH += `";$NpmPrefix`""
+        # Offer to auto-append to PowerShell profile
+        $reply = Read-Host "Add epost-kit to PATH in `$PROFILE? [Y/n]"
+        if ($reply -eq "" -or $reply -match "^[Yy]$") {
+            if (-not (Test-Path (Split-Path $PROFILE))) {
+                New-Item -ItemType Directory -Path (Split-Path $PROFILE) -Force | Out-Null
+            }
+            Add-Content -Path $PROFILE -Value ""
+            Add-Content -Path $PROFILE -Value "# epost-kit — added by installer"
+            Add-Content -Path $PROFILE -Value ('$env:PATH += ";' + $NpmPrefix + '"')
+            Write-Ok "Added to `$PROFILE — restart terminal or run: . `$PROFILE"
+        } else {
+            Write-Warn "Skipped. Add manually to `$PROFILE:"
+            Write-Warn ('  $env:PATH += ";' + $NpmPrefix + '"')
+        }
     }
 
     Write-Ok "Installation complete — restart terminal to use epost-kit"
