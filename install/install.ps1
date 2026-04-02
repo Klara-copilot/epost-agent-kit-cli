@@ -245,7 +245,7 @@ try {
     Write-Host "Installation complete!" -ForegroundColor Green
     Write-Host ""
     Write-Host "  Next steps:" -ForegroundColor Cyan
-    Write-Host "    epost-kit init     # Set up kit in your project"
+    Write-Host "    epost-kit install  # Set up kit in your project"
     Write-Host "    epost-kit doctor   # Check installation health"
     Write-Host ""
     Write-Host "  Note: GitHub CLI (gh) is required to use 'epost-kit install'." -ForegroundColor Yellow

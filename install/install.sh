@@ -186,7 +186,7 @@ fi
 
 printf "\n${GREEN}Installation complete!${NC}\n\n"
 printf "  ${BLUE}Next steps:${NC}\n"
-printf "    epost-kit init     # Set up kit in your project\n"
+printf "    epost-kit install  # Set up kit in your project\n"
 printf "    epost-kit doctor   # Check installation health\n\n"
 printf "  ${YELLOW}Note:${NC} GitHub CLI (gh) is required to use 'epost-kit install'.\n"
 printf "    Install: https://cli.github.com/ and run: gh auth login\n\n"
