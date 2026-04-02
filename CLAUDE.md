@@ -8,16 +8,16 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Installed Profile: `full`
 
-**Packages**: core, a11y, platform-web, platform-ios, platform-android, platform-backend, kit, design-system, domains
+**Packages**: core, a11y, platform-web, kit, design-system, domains
 
-**Installed by**: epost-kit v2.0.0 on 2026-03-18
+**Installed by**: epost-kit v2.0.0 on 2026-04-02
 
 ---
 
 ## Claude Code Agent System
 
 ### Configuration
-- **Agents**: `.claude/agents/` — 15 agents
+- **Agents**: `.claude/agents/` — 11 agents
 - **Commands**: `.claude/commands/` — Slash commands
 - **Skills**: `.claude/skills/` — Passive knowledge
 
@@ -43,7 +43,7 @@ On every user prompt, sense context before acting:
 ### Prompt Classification
 
 - **Dev task** (action/problem/question about code) → route via intent table below
-- **Kit question** ("which agent", "list skills", "our conventions") → `epost-project-manager`
+- **Kit question** ("which agent", "list skills", "our conventions") → answer directly using CLAUDE.md + skill-index
 - **External tech question** ("how does React...", "what is gRPC") → `epost-researcher`
 - **Conversational** (greetings, opinions, clarifications) → respond directly
 
@@ -54,8 +54,9 @@ On every user prompt, sense context before acting:
 | Build / Create | "add a button", "implement login", "make X work", "continue the plan" | `epost-fullstack-developer` via Agent tool |
 | Fix / Debug | "something is broken", "this crashes", "why does X happen", "it's not working" | `epost-debugger` via Agent tool |
 | Plan / Design | "how should we build X", "let's plan", "what's the approach for" | `epost-planner` via Agent tool |
+| Ideate / Brainstorm | "brainstorm", "should we", "help me think", "which approach", "compare options", "architecture decision" | `epost-brainstormer` via Agent tool |
 | Research | "how does X work", "best practices for", "compare A vs B" | `epost-researcher` via Agent tool |
-| Review / Audit | "check my code", "is this good", "review before merge", "audit this" | `epost-code-reviewer` via Agent tool |
+| Review / Audit | "review", "check my code", "is this good", "look at this before I commit", "review before merge", "audit this", "suggest improvements" | `epost-code-reviewer` via Agent tool |
 | Test | "add tests", "is this covered", "validate this works" | `epost-tester` via Agent tool |
 | Docs | "document this", "update the docs", "write a spec" | `epost-docs-manager` via Agent tool |
 | Git | "commit", "push", "create a PR", "ship it", "done" | `epost-git-manager` via Agent tool |
@@ -65,10 +66,16 @@ On every user prompt, sense context before acting:
 - Creation verbs (add, make, create, build, set up) → Build
 - Problem verbs (broken, wrong, failing, slow, crash) → Fix/Debug
 - Question verbs (how, why, what, should, compare) → Research or Plan
+- Ideation verbs (brainstorm, debate, explore, weigh, consider, what if) → Ideate/Brainstorm
 - Quality verbs (check, review, improve, clean up, refactor, simplify) → Review
+- Completion verbs (done, ship, finished, ready, merge) → Git
 - Still ambiguous → infer from git context (staged files → Review, active plan → Build, error in prompt → Fix)
 
-**Less common intents**: scaffold → `/bootstrap`, convert → `/convert`, journal → `epost-journal-writer`, MCP → `epost-mcp-manager`, design/UI → `epost-muji`
+**Web-specific examples**: "this component doesn't render" → Fix, "add dark mode" → Build, "page is slow" → Debug, "add a toast notification" → Build, "the CSS is off" → Fix, "update the API endpoint" → Build, "check the bundle size" → Review, "make login faster" → Debug
+
+**Less common intents**: scaffold → `/bootstrap`, convert → `/convert`, design/UI → `epost-muji`, architecture debate → `epost-brainstormer`
+
+**Skill authoring**: "create a skill", "improve this skill", "run evals", "test this skill", "measure skill quality", "benchmark skill", "optimize skill description", "refine skill" → use `skill-creator` skill
 
 ### Routing Rules
 
@@ -79,6 +86,10 @@ On every user prompt, sense context before acting:
 5. Merge conflicts → suggest fix/resolve
 6. Ambiguous after context boost → ask user (max 1 question)
 7. All delegations follow `core/references/orchestration.md`
+8. **Web context boost**: `.tsx`/`.ts`/`.scss`/`.css` files in `git diff` → auto-set platform=web, load web-frontend skill
+9. **Git operations** (commit, push, PR, done, ship) → ALWAYS delegate to `epost-git-manager` via Agent tool. Never handle inline.
+10. **Build, Fix, Plan, Test intents** → ALWAYS dispatch via Agent tool. Never execute inline in main context.
+11. **Compound git intent**: "commit and push" → dispatch `epost-git-manager` with `--push` (single agent call)
 
 ---
 
@@ -86,7 +97,7 @@ On every user prompt, sense context before acting:
 
 **Single intent** → spawn the matched agent directly via Agent tool.
 
-**Multi-intent** ("plan and build X", "research then implement") → spawn `epost-project-manager`, which decomposes and delegates sequentially.
+**Multi-intent** ("plan and build X", "research then implement") → orchestrator decomposes inline and spawns agents in sequence.
 
 **Parallel work** (3+ independent tasks, cross-platform) → use `subagent-driven-development` skill from main context.
 
@@ -135,70 +146,6 @@ See `core/references/orchestration.md` for full protocol.
 - `web-auth` — NextAuth + Keycloak, session management, feature switches
 - `web-testing` — Jest + RTL unit tests, Playwright E2E, test patterns
 - `web-modules` — B2B module integration
-
----
-
-
-## iOS Platform
-
-### Tech Stack
-- **Language**: Swift 6
-- **UI**: SwiftUI + UIKit
-- **Minimum Target**: iOS 18+
-- **Testing**: XCTest, XCUITest
-- **Build**: Xcode, XcodeBuildMCP
-
-### Skills
-- `ios-development` — Swift 6, SwiftUI/UIKit patterns, Xcode builds
-- `ios-ui-lib` — iOS theme SwiftUI components and design tokens
-- `ios-rag` — iOS codebase vector search
-
----
-
-
-## Android Platform
-
-### Tech Stack
-- **Language**: Kotlin
-- **UI**: Jetpack Compose
-- **Architecture**: MVVM, Hilt DI
-- **Database**: Room
-- **Networking**: Retrofit
-- **Testing**: JUnit, Espresso, Compose UI Testing
-- **Build**: Gradle (Kotlin DSL)
-
-### Skills
-- `android-development` — Kotlin, Jetpack Compose, Hilt DI patterns
-- `android-ui-lib` — Android theme Compose components and design tokens
-
----
-
-
-## Backend Platform
-
-### Tech Stack
-- **Language**: Java 8
-- **Platform**: Jakarta EE 8 / WildFly 26.1
-- **REST**: JAX-RS via RESTEasy
-- **CDI/EJB**: Jakarta CDI + EJB
-- **ORM**: Hibernate 5.6
-- **Databases**: PostgreSQL + MongoDB
-- **Build**: Maven
-- **Microprofile**: Eclipse MicroProfile 4.1
-- **Testing**: JUnit 4, Mockito, PowerMock, Arquillian
-- **Coverage**: JaCoCo
-- **Quality**: SonarQube
-- **Artifacts**: GCP Artifact Registry
-
-### Conventions
-- WAR packaging deployed to WildFly
-- `@Inject`, `@EJB`, `@Path` annotations (Jakarta EE, not Spring)
-- `persistence.xml` for JPA configuration
-- Maven profiles for SonarQube analysis
-
-### Skills
-- `backend-javaee` — Jakarta EE patterns, WildFly deployment, Maven builds
-- `backend-databases` — PostgreSQL + MongoDB persistence
 
 ---
 
