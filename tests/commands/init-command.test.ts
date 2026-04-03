@@ -63,7 +63,7 @@ describe('Init Command Pipeline', () => {
       const phases = ['validate', 'download', 'merge', 'finalize'];
       let executed = 0;
 
-      for (const phase of phases) {
+      for (const _phase of phases) {
         executed++;
       }
 

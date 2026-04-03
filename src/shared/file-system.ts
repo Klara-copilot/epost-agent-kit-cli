@@ -59,7 +59,7 @@ export async function safeWriteFile(path: string, content: string): Promise<void
 export async function safeCopyDir(
   src: string,
   dest: string,
-  options?: { filter?: (path: string) => boolean }
+  options?: { filter?: (_path: string) => boolean }
 ): Promise<void> {
   const filter = options?.filter ?? (() => true);
 

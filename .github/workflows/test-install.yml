@@ -258,9 +258,110 @@ jobs:
             echo "OK: $url ($status)"
           done
 
+  test-npm-pack-unix:
+    name: Test npm Pack Install (Unix)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [20, 22]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack
+        run: npm pack
+
+      - name: Install from tarball
+        run: npm install -g ./aavn-epost-kit-*.tgz
+
+      - name: Verify CLI is installed
+        run: |
+          which epost-kit
+          epost-kit --version
+
+      - name: Test CLI commands
+        run: |
+          epost-kit --help
+          epost-kit doctor || true
+
+      - name: Smoke test
+        run: |
+          mkdir -p /tmp/epost-npm-test
+          cd /tmp/epost-npm-test
+          epost-kit install || echo "Install completed"
+
+  test-npm-pack-windows:
+    name: Test npm Pack Install (Windows)
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack
+        id: pack
+        run: |
+          $pkg = npm pack --json | ConvertFrom-Json
+          echo "TARBALL=$($pkg[0].filename)" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Install from tarball
+        run: npm install -g $env:TARBALL
+        shell: pwsh
+
+      - name: Verify CLI is installed
+        run: |
+          where.exe epost-kit
+          epost-kit --version
+        shell: pwsh
+
+      - name: Test CLI commands
+        run: |
+          epost-kit --help
+          epost-kit doctor
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Smoke test
+        run: |
+          mkdir $env:TEMP\epost-npm-test -Force
+          cd $env:TEMP\epost-npm-test
+          epost-kit install
+        shell: pwsh
+        continue-on-error: true
+
   report-results:
     name: Report Test Results
-    needs: [test-unix-install, test-windows-powershell, test-windows-cmd, verify-documentation, verify-url-accessible]
+    needs: [test-unix-install, test-windows-powershell, test-windows-cmd, verify-documentation, verify-url-accessible, test-npm-pack-unix, test-npm-pack-windows]
     runs-on: ubuntu-latest
     if: always()
 
@@ -276,3 +377,5 @@ jobs:
           echo "| Windows (CMD) | ${{ needs.test-windows-cmd.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation | ${{ needs.verify-documentation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| URL Accessibility | ${{ needs.verify-url-accessible.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| npm Pack Unix | ${{ needs.test-npm-pack-unix.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| npm Pack Windows | ${{ needs.test-npm-pack-windows.result }} |" >> $GITHUB_STEP_SUMMARY

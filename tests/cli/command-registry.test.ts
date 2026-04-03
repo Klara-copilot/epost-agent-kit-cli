@@ -17,7 +17,7 @@ describe('Command Registry', () => {
       const cli = cac('epost-kit');
 
       cli.command('test <name>', 'Test command')
-        .action((name) => {
+        .action((_name) => {
           // Command action
         });
 

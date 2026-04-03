@@ -3,13 +3,11 @@
  * Mocks file ops, verifies resolver is called, verifies config update.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { resolveDependencies, type SkillEntry } from '@/domains/resolver/resolver.js';
 import {
   getAllSkillsForRole,
   getAllAgentsForRole,
-  SHARED_SKILLS,
-  SHARED_AGENTS,
   type RoleBundle,
 } from '@/domains/resolver/bundles.js';
 import { EpostConfigSchema, type EpostProjectConfig } from '@/types/epost-config.js';

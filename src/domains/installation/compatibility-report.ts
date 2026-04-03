@@ -22,7 +22,7 @@ export interface CompatibilityWarning {
 
 // ── Formatter ──
 
-const SEVERITY_COLOR: Record<WarningSeverity, (s: string) => string> = {
+const SEVERITY_COLOR: Record<WarningSeverity, (_s: string) => string> = {
   high:   (s) => pc.red(s),
   medium: (s) => pc.yellow(s),
   low:    (s) => pc.dim(s),

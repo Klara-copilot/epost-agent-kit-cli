@@ -9,7 +9,6 @@ import { join } from 'node:path';
 import {
   loadProfiles,
   loadAllManifests,
-  resolvePackages,
   topologicalSort,
 } from '@/domains/packages/package-resolver.js';
 

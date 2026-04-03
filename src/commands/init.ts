@@ -245,7 +245,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
 
   // ── Select IDE/editor ──
   const validTargets: TargetName[] = ["claude", "cursor", "vscode", "export"];
-  let target: TargetName =
+  const target: TargetName =
     wizardTarget ||
     (opts.target as TargetName) ||
     (metadata?.target as TargetName) ||

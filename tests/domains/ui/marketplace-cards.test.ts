@@ -3,7 +3,7 @@
  * Tests card string output, grid layout, status badges.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { RoleBundle } from '@/domains/resolver/bundles.js';
 import type { InstallState } from '@/domains/ui/marketplace-cards.js';
 

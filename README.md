@@ -2,15 +2,23 @@
 
 Distribution CLI for epost-agent-kit — installs and manages the multi-IDE AI agent framework across Claude Code, Cursor, and VS Code GitHub Copilot.
 
-**Version:** 2.0.0 | **Node:** >= 18.0.0 | **License:** MIT
+**Version:** 0.0.1 | **Node:** >= 18.0.0 | **License:** MIT
 
 ---
 
 ## Installation
 
-**Prerequisites:** Node.js >= 18, git, curl (macOS/Linux) or PowerShell 5.1+ (Windows)
+**Prerequisites:** Node.js >= 18, git
 
 Note: GitHub CLI (gh) is required after install to use `epost-kit install`.
+
+### Recommended — npm (all platforms)
+
+```bash
+npm install -g @aavn/epost-kit
+```
+
+### Alternative — install scripts
 
 **macOS / Linux / WSL:**
 ```bash

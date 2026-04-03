@@ -2,13 +2,13 @@
 
 ## Current Status
 
-**Version:** 2.0.0
-**Last Updated:** 2026-04-01
+**Version:** 0.0.1 (first public npm release, @aavn/epost-kit)
+**Last Updated:** 2026-04-02
 **Test Status:** 103 tests passing (100%)
 
 ## Completed Features
 
-### v2.0.0 (Current)
+### v0.0.1 (Current - Public npm release)
 - 32 commands across 6 categories
 - Multi-platform support (Claude Code, Cursor, GitHub Copilot)
 - Package management with topological sort dependency resolution
@@ -34,19 +34,22 @@
 
 ## Planned Features
 
-### v0.2.0 (Next)
+### v0.1.0 (Next)
 - [ ] Semver dependency constraints
 - [ ] Advanced package versioning
 - [ ] Local package caching (offline mode)
 - [ ] Enhanced package search and discovery
 - [ ] Performance optimizations for large package sets
 
-### v0.3.0 (Future)
+### v0.2.0 (Future)
 - [ ] Team-level configuration sync
 - [ ] Shared profile repositories
 - [ ] Multi-user conflict resolution
 
-## Completed in v2.0.0
+## Completed in v0.0.1
+
+### Public npm release
+Published as scoped package `@aavn/epost-kit` to npmjs.com registry. Primary distribution method via `npm install -g @aavn/epost-kit`.
 
 ### convert command
 Converts Claude Code commands/agents/skills to GitHub Copilot format. Full implementation with format conversion logic and validation.
@@ -83,6 +86,15 @@ Converts Claude Code commands/agents/skills to GitHub Copilot format. Full imple
 | Multi-Platform | Complete | 100% |
 | Enterprise Features | Planned | 0% |
 | Ecosystem | Future | 0% |
+
+## Installation
+
+Primary installation method:
+```bash
+npm install -g @aavn/epost-kit
+```
+
+Alternative install scripts available in `install/` directory for bash, PowerShell, and cmd.
 
 ## Key Dependencies
 

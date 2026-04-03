@@ -4,11 +4,11 @@
 
 **Project Name:** epost-agent-kit-cli
 **Project Type:** CLI Tool (Command-Line Interface)
-**Version:** 2.0.0
+**Version:** 0.0.1 (npm: @aavn/epost-kit)
 
 ## Purpose
 
-Command-line interface for managing ePost Agent Kit installations, packages, and configurations across Claude Code, Cursor, and GitHub Copilot platforms.
+Command-line interface for managing ePost Agent Kit installations, packages, and configurations across Claude Code, Cursor, and GitHub Copilot platforms. Distributed as scoped npm package `@aavn/epost-kit` via npmjs.com.
 
 ## Problem Statement
 

@@ -4,7 +4,7 @@
  * Tests: tab select → card list → action → install/back.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { filterRoles } from '@/domains/ui/marketplace-search.js';
 import { renderCardGrid } from '@/domains/ui/marketplace-cards.js';
 import type { RoleBundle } from '@/domains/resolver/bundles.js';
