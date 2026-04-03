@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "description": "epost-agent-kit-cli Knowledge Base Registry",
-  "updatedAt": "2026-04-02T13:21:00Z",
+  "description": "epost-agent-kit-cli Knowledge Base Registry (@aavn/epost-kit v0.0.1)",
+  "updatedAt": "2026-04-03T12:39:00Z",
   "entries": [
     {
       "id": "ARCH-001",
@@ -70,7 +70,7 @@
       "title": "Project Roadmap",
       "category": "guides",
       "file": "project-roadmap.md",
-      "description": "Release roadmap: v2.0.0 complete (32 commands, multi-platform, 103 tests), v0.2.0 planned (semver constraints, caching), phases 1-2 complete, phases 3-4 future. Includes contribution guidelines.",
+      "description": "Release roadmap: v0.0.1 complete (npm release @aavn/epost-kit, 32 commands, multi-platform, 103 tests), v0.1.0 planned (semver constraints, caching), phases 1-2 complete, phases 3+ future. Includes contribution guidelines.",
       "tags": [
         "roadmap",
         "releases",
