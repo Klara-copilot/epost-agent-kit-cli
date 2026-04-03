@@ -32,6 +32,7 @@ export function formatCommandAsAgent(cmd: ClaudeCommand): CopilotAgent {
   return {
     name: cmd.title || cmd.name,
     description: cmd.description || `Claude command: ${cmd.name}`,
+    target: "vscode",
     tools,
     userInvocable: true,
     content: truncateContent(content),
@@ -47,6 +48,7 @@ export function formatAgentAsAgent(agent: ClaudeAgent): CopilotAgent {
   return {
     name: agent.name,
     description: agent.description || `Agent: ${agent.name}`,
+    target: "vscode",
     tools,
     userInvocable: true,
     content: truncateContent(agent.content),

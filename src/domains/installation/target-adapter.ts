@@ -209,7 +209,8 @@ export function serializeFrontmatter(
       lines.push(`${key}: [${items.join(", ")}]`);
     } else if (typeof value === "object") {
       continue; // non-array objects skipped
-    } else if (typeof value === "string" && value.includes(":")) {
+    } else if (typeof value === "string" && (value === "*" || value.includes(":"))) {
+      // '*' is a YAML anchor reference — must be quoted; also quote strings with ':'
       lines.push(`${key}: '${value}'`);
     } else {
       lines.push(`${key}: ${value}`);

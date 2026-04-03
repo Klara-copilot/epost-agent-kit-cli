@@ -1,8 +1,8 @@
 /**
  * Copilot Adapter — transforms Claude Code format → GitHub Copilot / VS Code format
  *
- * Agents:   name.md → name.agent.md  (new frontmatter: tools, handoffs)
- * Skills:   SKILL.md → SKILL.md      (user-invocable → user-invokable)
+ * Agents:   name.md → name.agent.md  (new frontmatter: target, tools, handoffs, agents)
+ * Skills:   SKILL.md → SKILL.md      (path refs replaced)
  * Hooks:    settings.json → hooks.json (command→bash, timeout→timeoutSec, version:1)
  * Install:  .claude/ → .github/
  */
@@ -35,6 +35,11 @@ const TOOL_MAP: Record<string, string> = {
   WebSearch: "web",
   Browser: "browser",
   Agent: "agent",
+  // Sub-tool specifiers (VS Code April 2026) — passthrough
+  "web/fetch": "web/fetch",
+  "search/codebase": "search/codebase",
+  "search/usages": "search/usages",
+  "search/file": "search/file",
 };
 
 // All VS Code Copilot built-in tools (verified March 2026)
@@ -59,21 +64,33 @@ export class CopilotAdapter implements TargetAdapter {
     const { frontmatter: fm, body } = parseFrontmatter(content);
     const newFm: Record<string, unknown> = {};
 
+    newFm.target = "vscode";
     if (fm.description) newFm.description = fm.description;
     if (fm.name) newFm.name = fm.name;
     if (fm["argument-hint"]) newFm["argument-hint"] = fm["argument-hint"];
 
-    const model = String(fm.model || "");
-    if (model && MODEL_MAP[model]) {
-      newFm.model = MODEL_MAP[model];
-    } else if (model) {
-      newFm.model = model;
+    const rawModel = fm.model;
+    if (Array.isArray(rawModel)) {
+      // Prioritized model list — map known aliases, pass through unknowns
+      newFm.model = (rawModel as string[]).map((m) => MODEL_MAP[m] || m);
+    } else {
+      const model = String(rawModel || "");
+      if (model && MODEL_MAP[model]) {
+        newFm.model = MODEL_MAP[model];
+      } else if (model) {
+        newFm.model = model;
+      }
     }
 
     newFm.tools = this.buildToolsArray(fm);
 
     if (Array.isArray(fm.handoffs) && fm.handoffs.length > 0) {
       newFm.handoffs = fm.handoffs;
+    }
+
+    // agents field — subagent delegation control (VS Code April 2026)
+    if (fm.agents !== undefined) {
+      newFm.agents = fm.agents;
     }
 
     // Warn on dropped agent fields
@@ -112,9 +129,7 @@ export class CopilotAdapter implements TargetAdapter {
   }
 
   transformSkill(content: string): string {
-    return this.replacePathRefs(
-      content.replace(/user-invocable/g, "user-invokable"),
-    );
+    return this.replacePathRefs(content);
   }
 
   transformHooks(
@@ -240,6 +255,11 @@ export class CopilotAdapter implements TargetAdapter {
 
   private buildToolsArray(fm: Record<string, unknown>): string[] {
     if (fm.permissionMode === "plan") return READONLY_TOOLS;
+
+    // Explicit tools list from source — map each through TOOL_MAP, passthrough unknowns
+    if (Array.isArray(fm.tools) && fm.tools.length > 0) {
+      return (fm.tools as string[]).map((t) => TOOL_MAP[t] || t);
+    }
 
     const disallowed = String(fm.disallowedTools || "");
     if (!disallowed) return DEFAULT_TOOLS;
