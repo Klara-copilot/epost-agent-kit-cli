@@ -16,7 +16,7 @@ import { downloadRelease } from './github-client.js';
 
 export interface DownloadOptions {
   forceDownload?: boolean;
-  onProgress?: (downloaded: number, total: number) => void;
+  onProgress?: (_downloaded: number, _total: number) => void;
 }
 
 // GitHub API calls now consolidated through github-client.ts

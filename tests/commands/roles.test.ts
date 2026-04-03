@@ -3,7 +3,7 @@
  * Tests bundle loading and role data shape.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   mergeRoleBundle,
   getAllSkillsForRole,

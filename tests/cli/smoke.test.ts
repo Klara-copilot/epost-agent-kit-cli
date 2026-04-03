@@ -11,7 +11,7 @@ describe('CLI Smoke Tests', () => {
         stdio: 'pipe',
       });
       expect(output).toMatch(/\d+\.\d+\.\d+/);
-    } catch (error) {
+    } catch {
       // Skip if dist not built yet
       console.warn('CLI not built, skipping version test');
     }
@@ -25,7 +25,7 @@ describe('CLI Smoke Tests', () => {
       });
       expect(output).toContain('Usage');
       expect(output).toContain('Options');
-    } catch (error) {
+    } catch {
       // Skip if dist not built yet
       console.warn('CLI not built, skipping help test');
     }
@@ -50,7 +50,7 @@ describe('CLI Smoke Tests', () => {
       for (const cmd of expectedCommands) {
         expect(output.toLowerCase()).toContain(cmd.toLowerCase());
       }
-    } catch (error) {
+    } catch {
       // Skip if dist not built yet
       console.warn('CLI not built, skipping commands test');
     }

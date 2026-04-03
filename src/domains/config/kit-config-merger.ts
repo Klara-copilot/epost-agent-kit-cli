@@ -49,7 +49,7 @@ export async function loadKitConfig(
 export async function mergeAndWriteKitConfig(
   packages: Array<{ name: string; dir: string }>,
   outputPath: string,
-  pathTransformer?: (content: string) => string,
+  pathTransformer?: (_content: string) => string,
 ): Promise<{ merged: Record<string, any>; sources: string[] }> {
   const allConfigs: PackageKitConfig[] = [];
   const sources: string[] = [];
