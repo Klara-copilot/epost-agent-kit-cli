@@ -1,6 +1,6 @@
 {
-  "name": "epost-kit",
-  "version": "2.0.0",
+  "name": "@aavn/epost-kit",
+  "version": "0.0.1",
   "description": "Distribution CLI for epost-agent-kit - multi-IDE agent framework",
   "type": "module",
   "bin": {
