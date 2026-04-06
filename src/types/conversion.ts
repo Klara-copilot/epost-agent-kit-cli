@@ -37,7 +37,9 @@ export interface CopilotAgent {
   name: string; // Agent display name
   description: string; // REQUIRED - agent purpose
   target?: "vscode" | "github-copilot";
+  model?: string | string[]; // Single model or prioritized model list (April 2026)
   tools?: string[]; // Tool aliases
+  agents?: string | string[]; // Subagent delegation: '*' | [] | explicit list (April 2026)
   disableModelInvocation?: boolean;
   userInvocable?: boolean;
   content: string; // Markdown instructions (max 30,000 chars)

@@ -1,0 +1,38 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  id-token: write  # required for npm provenance attestation
+  contents: write  # required for gh release create
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build and publish to npm
+        run: bash .github/scripts/ci-publish.sh
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION_INPUT: ${{ inputs.version }}
+
+      - name: Create GitHub Release
+        run: gh release create "${{ inputs.version }}" --generate-notes --title "${{ inputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
