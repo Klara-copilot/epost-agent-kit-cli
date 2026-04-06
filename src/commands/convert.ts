@@ -1,9 +1,13 @@
 /**
  * Command: epost-kit convert
- * Convert Claude-Code commands/agents/skills to GitHub Copilot format
+ * Convert Claude-Code commands/agents/skills to IDE-specific format.
+ *
+ * Supports --target vscode (default), cursor, jetbrains.
+ * Uses the same TargetAdapter pipeline as `epost-kit init` to ensure
+ * tool mappings, path references, and agent transforms are identical.
  */
 
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { homedir } from "node:os";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -15,32 +19,34 @@ import { box, keyValue, indent } from "@/domains/ui/ui.js";
 import { resolvePackages } from "@/domains/packages/package-resolver.js";
 import {
   discoverPackageFiles,
-  parseClaudeCommand,
-  parseClaudeAgent,
   parseClaudeSkill,
 } from "@/domains/conversion/claude-parser.js";
 import {
-  formatCommandAsAgent,
-  formatAgentAsAgent,
   formatSkillAsInstructions,
-  generateAgentMarkdown,
   generateInstructionsMarkdown,
 } from "@/domains/conversion/copilot-formatter.js";
-import type {
-  ConversionResult,
-  CopilotAgent,
-  CopilotInstructions,
-} from "@/types/conversion.js";
+import { createTargetAdapter } from "@/domains/installation/target-adapter.js";
 import type { ConvertOptions } from "@/types/commands.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const kitPaths = new KitPathResolver(__dirname);
 
+/** Per-target output directory defaults */
+const TARGET_DEFAULTS: Record<string, { outputDir: string }> = {
+  vscode:    { outputDir: ".github" },
+  cursor:    { outputDir: ".cursor" },
+  jetbrains: { outputDir: "." },
+};
+
 /**
  * Run convert command
  */
 export async function runConvert(options: ConvertOptions): Promise<void> {
+  const target = options.target ?? "vscode";
+  const targetDefaults = TARGET_DEFAULTS[target] ?? TARGET_DEFAULTS["vscode"];
+  const outputDir = options.output ?? targetDefaults.outputDir;
+
   const spinner = ora("Analyzing packages...").start();
 
   try {
@@ -51,22 +57,85 @@ export async function runConvert(options: ConvertOptions): Promise<void> {
       return;
     }
 
-    spinner.text = `Converting ${packages.length} package(s)...`;
+    spinner.text = `Converting ${packages.length} package(s) for target: ${target}...`;
+
+    // Get packages dir
+    const packagesDir = options.source
+      ? await kitPaths.getPackagesDir()
+      : join(homedir(), ".epost-kit", "packages");
+
+    // Create adapter — same pipeline as `epost-kit init`
+    const adapter = await createTargetAdapter(target as Parameters<typeof createTargetAdapter>[0]);
 
     // Convert all packages
-    const result = await convertPackages(packages, options);
+    const agents: Array<{ filename: string; content: string }> = [];
+    const instructions: Array<{ filename: string; content: string }> = [];
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    for (const pkgName of packages) {
+      const pkgDir = join(packagesDir, pkgName);
+
+      if (!(await dirExists(pkgDir))) {
+        warnings.push(`Package not found: ${pkgName}`);
+        continue;
+      }
+
+      try {
+        const files = await discoverPackageFiles(pkgDir);
+
+        // Convert agents — use adapter.transformAgent() for identical output to init
+        for (const agentPath of files.agents) {
+          const rawContent = await readFile(agentPath, "utf-8");
+          const filename = basename(agentPath);
+          const result = adapter.transformAgent(rawContent, filename);
+          agents.push(result);
+        }
+
+        // Convert commands (treated as agents)
+        for (const cmdPath of files.commands) {
+          const rawContent = await readFile(cmdPath, "utf-8");
+          const filename = basename(cmdPath);
+          const result = adapter.transformAgent(rawContent, filename);
+          agents.push(result);
+        }
+
+        // Convert skills — vscode uses instructions files, other targets skip
+        if (target === "vscode") {
+          for (const skillDir of files.skills) {
+            const skillPath = join(skillDir, "SKILL.md");
+            const content = await readFile(skillPath, "utf-8");
+            const skill = parseClaudeSkill(skillDir, content);
+            const inst = formatSkillAsInstructions(skill);
+            instructions.push({
+              filename: sanitizeFileName(inst.description || "instruction") + ".instructions.md",
+              content: generateInstructionsMarkdown(inst),
+            });
+          }
+        }
+      } catch (error) {
+        errors.push(
+          `Failed to convert ${pkgName}: ${error instanceof Error ? error.message : error}`
+        );
+      }
+    }
+
+    // Collect adapter warnings
+    for (const w of adapter.getWarnings()) {
+      warnings.push(`[${w.severity}] ${w.source}: ${w.reason}`);
+    }
 
     spinner.succeed(
-      `Converted ${result.agents.length} agents, ${result.instructions.length} instructions`
+      `Converted ${agents.length} agents${instructions.length > 0 ? `, ${instructions.length} instructions` : ""} (target: ${target})`
     );
 
     // Display results
-    displayConversionResult(result);
+    displayResults({ agents, instructions, errors, warnings });
 
     // Write files (unless dry run)
     if (!options.dryRun) {
-      await writeConversionResult(result, options);
-      console.log(pc.green("\n✓ Files written to .github/"));
+      await writeResults(agents, instructions, outputDir, target);
+      console.log(pc.green(`\n✓ Files written to ${outputDir}/`));
     } else {
       console.log(pc.yellow("\n--dry-run: No files written"));
     }
@@ -82,7 +151,6 @@ export async function runConvert(options: ConvertOptions): Promise<void> {
 async function resolvePackagesForConversion(
   options: ConvertOptions
 ): Promise<string[]> {
-  // Get packages directory
   let packagesDir: string;
   let profilesPath: string;
 
@@ -94,12 +162,10 @@ async function resolvePackagesForConversion(
     profilesPath = join(homedir(), ".epost-kit", "profiles", "profiles.yaml");
   }
 
-  // If specific packages requested
   if (options.packages) {
     return options.packages.split(",").map((p: string) => p.trim());
   }
 
-  // If profile specified, resolve from profile
   if (options.profile) {
     const resolved = await resolvePackages({
       profile: options.profile,
@@ -109,76 +175,18 @@ async function resolvePackagesForConversion(
     return resolved.packages;
   }
 
-  // Default: convert core package only
   return ["core"];
 }
 
 /**
- * Convert all packages
+ * Display results summary
  */
-async function convertPackages(
-  packageNames: string[],
-  options: ConvertOptions
-): Promise<ConversionResult> {
-  const agents: CopilotAgent[] = [];
-  const instructions: CopilotInstructions[] = [];
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  let packagesDir: string;
-  if (options.source) {
-    packagesDir = await kitPaths.getPackagesDir();
-  } else {
-    packagesDir = join(homedir(), ".epost-kit", "packages");
-  }
-
-  for (const pkgName of packageNames) {
-    const pkgDir = join(packagesDir, pkgName);
-
-    if (!(await dirExists(pkgDir))) {
-      warnings.push(`Package not found: ${pkgName}`);
-      continue;
-    }
-
-    try {
-      // Discover files in package
-      const files = await discoverPackageFiles(pkgDir);
-
-      // Convert commands
-      for (const cmdPath of files.commands) {
-        const content = await readFile(cmdPath, "utf-8");
-        const cmd = parseClaudeCommand(cmdPath, content);
-        agents.push(formatCommandAsAgent(cmd));
-      }
-
-      // Convert agents
-      for (const agentPath of files.agents) {
-        const content = await readFile(agentPath, "utf-8");
-        const agent = parseClaudeAgent(agentPath, content);
-        agents.push(formatAgentAsAgent(agent));
-      }
-
-      // Convert skills
-      for (const skillDir of files.skills) {
-        const skillPath = join(skillDir, "SKILL.md");
-        const content = await readFile(skillPath, "utf-8");
-        const skill = parseClaudeSkill(skillDir, content);
-        instructions.push(formatSkillAsInstructions(skill));
-      }
-    } catch (error) {
-      errors.push(
-        `Failed to convert ${pkgName}: ${error instanceof Error ? error.message : error}`
-      );
-    }
-  }
-
-  return { agents, instructions, errors, warnings };
-}
-
-/**
- * Display conversion results
- */
-function displayConversionResult(result: ConversionResult): void {
+function displayResults(result: {
+  agents: Array<{ filename: string }>;
+  instructions: Array<{ filename: string }>;
+  errors: string[];
+  warnings: string[];
+}): void {
   console.log(
     "\n" +
       box(
@@ -197,14 +205,14 @@ function displayConversionResult(result: ConversionResult): void {
   if (result.agents.length > 0) {
     console.log(pc.bold("\nGenerated Agents:"));
     for (const agent of result.agents) {
-      console.log(indent(`• ${agent.name}`, 2));
+      console.log(indent(`• ${agent.filename}`, 2));
     }
   }
 
   if (result.instructions.length > 0) {
     console.log(pc.bold("\nGenerated Instructions:"));
     for (const inst of result.instructions) {
-      console.log(indent(`• ${inst.description}`, 2));
+      console.log(indent(`• ${inst.filename}`, 2));
     }
   }
 
@@ -224,36 +232,39 @@ function displayConversionResult(result: ConversionResult): void {
 }
 
 /**
- * Write conversion results to files
+ * Write results to disk
  */
-async function writeConversionResult(
-  result: ConversionResult,
-  options: ConvertOptions
+async function writeResults(
+  agents: Array<{ filename: string; content: string }>,
+  instructions: Array<{ filename: string; content: string }>,
+  outputDir: string,
+  target: string,
 ): Promise<void> {
-  const outputDir = options.output || ".github";
-
-  // Create directories
-  const agentsDir = join(outputDir, "agents");
-  const instructionsDir = join(outputDir, "instructions");
-
-  await mkdir(agentsDir, { recursive: true });
-  await mkdir(instructionsDir, { recursive: true });
-
-  // Write agents
-  for (const agent of result.agents) {
-    const fileName = sanitizeFileName(agent.name) + ".agent.md";
-    const filePath = join(agentsDir, fileName);
-    const content = generateAgentMarkdown(agent);
-    await writeFile(filePath, content, "utf-8");
+  if (target === "jetbrains") {
+    // JetBrains: single AGENTS.md at project root
+    const agentsContent = agents
+      .map((a) => `## ${a.filename.replace(/\.md$/, "")}\n\n${a.content}`)
+      .join("\n\n---\n\n");
+    const filePath = join(outputDir, "AGENTS.md");
+    await writeFile(filePath, agentsContent || "# Agents\n\n(No agents converted)\n", "utf-8");
+    return;
   }
 
-  // Write instructions
-  for (const inst of result.instructions) {
-    const fileName =
-      sanitizeFileName(inst.description || "instruction") + ".instructions.md";
-    const filePath = join(instructionsDir, fileName);
-    const content = generateInstructionsMarkdown(inst);
-    await writeFile(filePath, content, "utf-8");
+  const agentsDir = join(outputDir, "agents");
+  await mkdir(agentsDir, { recursive: true });
+
+  for (const agent of agents) {
+    const filePath = join(agentsDir, agent.filename);
+    await writeFile(filePath, agent.content, "utf-8");
+  }
+
+  if (instructions.length > 0) {
+    const instructionsDir = join(outputDir, "instructions");
+    await mkdir(instructionsDir, { recursive: true });
+    for (const inst of instructions) {
+      const filePath = join(instructionsDir, inst.filename);
+      await writeFile(filePath, inst.content, "utf-8");
+    }
   }
 }
 
@@ -267,6 +278,5 @@ function sanitizeFileName(name: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 
-  // Truncate to 100 chars to avoid file system limits
   return sanitized.slice(0, 100);
 }

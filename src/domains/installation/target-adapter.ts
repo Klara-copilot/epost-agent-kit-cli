@@ -9,7 +9,7 @@
 
 // ── Types ──
 
-export type TargetName = "claude" | "cursor" | "vscode" | "export";
+export type TargetName = "claude" | "cursor" | "vscode" | "export" | "jetbrains" | "antigravity";
 
 export interface TransformResult {
   content: string;
@@ -68,6 +68,15 @@ export interface TargetAdapter {
    * ClaudeAdapter always returns []. CopilotAdapter collects warnings as it transforms.
    */
   getWarnings(): import("./compatibility-report.js").CompatibilityWarning[];
+
+  /**
+   * Generate platform-scoped instruction files (Copilot only).
+   * Returns array of {filename, content} tuples to write under installDir.
+   * Optional — adapters that don't support scoped instructions return undefined.
+   */
+  generateScopedInstructions?(
+    snippets: import("./claude-md-generator.js").PackageSnippet[],
+  ): Array<{filename: string; content: string}>;
 }
 
 // ── Factory ──
@@ -91,6 +100,14 @@ export async function createTargetAdapter(
     case "export": {
       const { ExportAdapter } = await import("./export-adapter.js");
       return new ExportAdapter();
+    }
+    case "jetbrains": {
+      const { JetBrainsAdapter } = await import("./jetbrains-adapter.js");
+      return new JetBrainsAdapter();
+    }
+    case "antigravity": {
+      const { AntigravityAdapter } = await import("./antigravity-adapter.js");
+      return new AntigravityAdapter();
     }
     default:
       throw new Error(`Unknown target: ${target}`);

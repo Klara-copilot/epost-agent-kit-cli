@@ -306,6 +306,24 @@ cli
     await runRepair({ ...cli.globalCommand.options, ...opts });
   });
 
+// Command: convert - Convert kit to IDE-specific format
+cli
+  .command("convert", "Convert Claude-Code agents/skills to IDE-specific format")
+  .option("--target <name>", "IDE target: vscode (default), cursor, jetbrains")
+  .option("--output <path>", "Output directory (default: .github for vscode, .cursor for cursor)")
+  .option("--packages <list>", "Comma-separated package names to convert")
+  .option("--profile <name>", "Profile filter")
+  .option("--dry-run", "Preview changes without writing files")
+  .option("--source", "Use local source repo for packages (dev mode)")
+  .action(async (opts: any) => {
+    const { runConvert } = await import("./commands/convert.js");
+    await runConvert({
+      ...cli.globalCommand.options,
+      ...opts,
+      dryRun: opts.dryRun,
+    });
+  });
+
 // Command: uninstall - Remove kit
 cli
   .command("uninstall", "Remove installed kit from project")

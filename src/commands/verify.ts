@@ -4,7 +4,7 @@
  * Runs integrity check + lint + health checks + generates mermaid dependency graph.
  */
 
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import pc from "picocolors";
@@ -205,6 +205,171 @@ async function extractAllConnections(
   return connections;
 }
 
+// ─── IDE Output Checks ───
+
+export interface IdeOutputFinding {
+  target: string;
+  severity: "error" | "warn" | "info";
+  rule: string;
+  message: string;
+}
+
+/**
+ * Verify IDE target output directories for common issues:
+ * - No residual .claude/ path references in non-Claude output
+ * - vscode: agents end in .agent.md, no monolithic epost-kit.mdc
+ * - cursor: no monolithic epost-kit.mdc (should be split per platform)
+ * - jetbrains: AGENTS.md exists at project root
+ */
+export async function checkIdeOutputs(cwd: string): Promise<IdeOutputFinding[]> {
+  const findings: IdeOutputFinding[] = [];
+
+  // VS Code / Copilot: .github/
+  const githubDir = join(cwd, ".github");
+  if (await dirExists(githubDir)) {
+    await checkNoClaudePaths(githubDir, "vscode", findings);
+    await checkAgentFileExtensions(githubDir, findings);
+    await checkNoMonolithicMdc(githubDir, "vscode", findings);
+  }
+
+  // Cursor: .cursor/
+  const cursorDir = join(cwd, ".cursor");
+  if (await dirExists(cursorDir)) {
+    await checkNoClaudePaths(cursorDir, "cursor", findings);
+    await checkCursorSplitRules(cursorDir, findings);
+  }
+
+  // JetBrains: AGENTS.md at project root
+  const agentsMd = join(cwd, "AGENTS.md");
+  if (await fileExists(agentsMd)) {
+    const content = await readFile(agentsMd, "utf-8");
+    if (content.trim().length < 10) {
+      findings.push({
+        target: "jetbrains",
+        severity: "warn",
+        rule: "agents-md-non-empty",
+        message: "AGENTS.md exists but appears to be empty",
+      });
+    } else {
+      findings.push({
+        target: "jetbrains",
+        severity: "info",
+        rule: "agents-md-exists",
+        message: "AGENTS.md present and non-empty",
+      });
+    }
+  }
+
+  return findings;
+}
+
+async function checkNoClaudePaths(
+  dir: string,
+  target: string,
+  findings: IdeOutputFinding[],
+): Promise<void> {
+  const files = await getAllMdFiles(dir);
+  for (const file of files) {
+    try {
+      const content = await readFile(file, "utf-8");
+      const matches = content.match(/\.claude\//g);
+      if (matches) {
+        findings.push({
+          target,
+          severity: "error",
+          rule: "no-claude-paths",
+          message: `${file.replace(dir + "/", "")} contains ${matches.length} .claude/ reference(s) — should be replaced by path adapter`,
+        });
+      }
+    } catch { /* skip */ }
+  }
+}
+
+async function checkAgentFileExtensions(
+  githubDir: string,
+  findings: IdeOutputFinding[],
+): Promise<void> {
+  const agentsDir = join(githubDir, "agents");
+  if (!(await dirExists(agentsDir))) return;
+
+  const files = await readdir(agentsDir).catch(() => [] as string[]);
+  const nonAgentMd = files.filter((f) => f.endsWith(".md") && !f.endsWith(".agent.md"));
+  if (nonAgentMd.length > 0) {
+    findings.push({
+      target: "vscode",
+      severity: "warn",
+      rule: "agent-file-extension",
+      message: `${nonAgentMd.length} file(s) in .github/agents/ do not use .agent.md extension: ${nonAgentMd.join(", ")}`,
+    });
+  }
+}
+
+async function checkNoMonolithicMdc(
+  dir: string,
+  target: string,
+  findings: IdeOutputFinding[],
+): Promise<void> {
+  // Monolithic epost-kit.mdc should not exist in vscode output
+  const monoMdc = join(dir, "rules", "epost-kit.mdc");
+  if (await fileExists(monoMdc)) {
+    findings.push({
+      target,
+      severity: "warn",
+      rule: "no-monolithic-mdc",
+      message: `${monoMdc} found — cursor split-MDC generates per-platform files instead`,
+    });
+  }
+}
+
+async function checkCursorSplitRules(
+  cursorDir: string,
+  findings: IdeOutputFinding[],
+): Promise<void> {
+  const rulesDir = join(cursorDir, "rules");
+  if (!(await dirExists(rulesDir))) return;
+
+  const files = await readdir(rulesDir).catch(() => [] as string[]);
+  const mdcFiles = files.filter((f) => f.endsWith(".mdc"));
+
+  // Warn if only monolithic file exists
+  const hasMonolithic = mdcFiles.includes("epost-kit.mdc");
+  const hasSplit = mdcFiles.some((f) => f.startsWith("epost-kit-") && f.endsWith(".mdc"));
+
+  if (hasMonolithic && !hasSplit) {
+    findings.push({
+      target: "cursor",
+      severity: "warn",
+      rule: "cursor-split-rules",
+      message: "Only monolithic epost-kit.mdc found — run `epost-kit init --target cursor` to generate split per-platform rules",
+    });
+  }
+
+  if (hasSplit) {
+    findings.push({
+      target: "cursor",
+      severity: "info",
+      rule: "cursor-split-rules",
+      message: `Split MDC rules present: ${mdcFiles.filter((f) => f.startsWith("epost-kit-")).join(", ")}`,
+    });
+  }
+}
+
+async function getAllMdFiles(dir: string): Promise<string[]> {
+  const results: string[] = [];
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...(await getAllMdFiles(fullPath)));
+      } else if (entry.name.endsWith(".md") || entry.name.endsWith(".mdc")) {
+        results.push(fullPath);
+      }
+    }
+  } catch { /* skip */ }
+  return results;
+}
+
 // ─── Display Helpers ───
 
 function displayIntegrity(integrity: IntegritySummary): void {
@@ -247,11 +412,12 @@ export async function runVerify(opts: VerifyOptions): Promise<void> {
   }
 
   // Run all checks in parallel
-  const [refErrors, healthResult, allConnections, integrity] = await Promise.all([
+  const [refErrors, healthResult, allConnections, integrity, ideFindings] = await Promise.all([
     validateReferences(claudeDir, buildRefRegistry(await loadAllManifests(packagesDir))),
     runSkillHealthChecks(packagesDir, claudeDir, await loadAllManifests(packagesDir)),
     extractAllConnections(packagesDir),
     checkInstalledIntegrity(cwd),
+    checkIdeOutputs(cwd),
   ]);
 
   const { issues, stats } = healthResult;
@@ -264,8 +430,12 @@ export async function runVerify(opts: VerifyOptions): Promise<void> {
   const integrityErrors = integrity.missing.length;
   const integrityWarnings = integrity.modified.length;
 
-  const totalErrors = refErrors.length + errors.length + integrityErrors;
-  const totalWarnings = warnings.length + integrityWarnings;
+  // Count IDE output check findings
+  const ideErrors = ideFindings.filter((f) => f.severity === "error").length;
+  const ideWarnings = ideFindings.filter((f) => f.severity === "warn").length;
+
+  const totalErrors = refErrors.length + errors.length + integrityErrors + ideErrors;
+  const totalWarnings = warnings.length + integrityWarnings + ideWarnings;
 
   // ── Generate mermaid graph ──
   const docsDir = join(cwd, "docs");
@@ -335,6 +505,17 @@ export async function runVerify(opts: VerifyOptions): Promise<void> {
   console.log(`  Skills:       ${stats.skillCount} found`);
   console.log(`  Connections:  ${stats.connectionCount.extends}e ${stats.connectionCount.requires}r ${stats.connectionCount.conflicts}c ${stats.connectionCount.enhances}h`);
   console.log(`  Completeness: ${stats.completeness.withDescription}/${stats.skillCount} desc, ${stats.completeness.withKeywords}/${stats.skillCount} kw, ${stats.completeness.withPlatforms}/${stats.skillCount} plat`);
+
+  // IDE output check summary
+  if (ideFindings.length > 0) {
+    const ideIssues = ideFindings.filter((f) => f.severity !== "info");
+    const ideFindingsStr = ideIssues.length === 0
+      ? pc.green("OK")
+      : ideIssues.some((f) => f.severity === "error")
+        ? pc.red(`${ideErrors} error(s), ${ideWarnings} warning(s)`)
+        : pc.yellow(`${ideWarnings} warning(s)`);
+    console.log(`  IDE outputs:  ${ideFindingsStr}`);
+  }
   console.log();
 
   if (totalErrors > 0) {
@@ -345,6 +526,9 @@ export async function runVerify(opts: VerifyOptions): Promise<void> {
     for (const f of integrity.missing) {
       console.log(`    ${pc.red("✗")} [integrity] missing: ${f}`);
     }
+    for (const f of ideFindings.filter((f) => f.severity === "error")) {
+      console.log(`    ${pc.red("✗")} [ide:${f.target}:${f.rule}] ${f.message}`);
+    }
   }
 
   if (totalWarnings > 0) {
@@ -353,11 +537,20 @@ export async function runVerify(opts: VerifyOptions): Promise<void> {
       for (const f of integrity.modified) {
         console.log(`    ${pc.yellow("~")} [integrity] modified: ${f}`);
       }
+      for (const f of ideFindings.filter((f) => f.severity === "warn")) {
+        console.log(`    ${pc.yellow("~")} [ide:${f.target}:${f.rule}] ${f.message}`);
+      }
     }
   }
 
-  if (infos.length > 0) {
-    console.log(pc.dim(`  ${infos.length} info`));
+  if (infos.length > 0 || ideFindings.filter((f) => f.severity === "info").length > 0) {
+    const totalInfos = infos.length + ideFindings.filter((f) => f.severity === "info").length;
+    console.log(pc.dim(`  ${totalInfos} info`));
+    if (opts.verbose) {
+      for (const f of ideFindings.filter((f) => f.severity === "info")) {
+        console.log(pc.dim(`    ℹ [ide:${f.target}:${f.rule}] ${f.message}`));
+      }
+    }
   }
 
   if (!integrity.metadataPresent) {

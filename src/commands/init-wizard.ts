@@ -305,6 +305,7 @@ export async function runInitWizard(
       { name: `Claude Code       ${pc.dim("→ .claude/")}`, value: "claude" as const },
       { name: `VS Code / Copilot ${pc.dim("→ .vscode/")}`, value: "vscode" as const },
       { name: `Cursor            ${pc.dim("→ .cursor/")}`, value: "cursor" as const },
+      { name: `Antigravity       ${pc.dim("→ GEMINI.md")}`, value: "antigravity" as const },
       { name: `Export only       ${pc.dim("→ no editor integration")}`, value: "export" as const },
     ],
     default: "claude",
@@ -318,9 +319,10 @@ export async function runInitWizard(
   const skillCount = resolvedPackages.reduce((sum, p) => sum + (allManifests.get(p)?.provides.skills.length ?? 0), 0);
 
   const targetLabel =
-    target === "claude"  ? "Claude Code (.claude/)" :
-    target === "vscode"  ? "VS Code / Copilot (.github/)" :
-    target === "cursor"  ? "Cursor (.cursor/)" :
+    target === "claude"       ? "Claude Code (.claude/)" :
+    target === "vscode"       ? "VS Code / Copilot (.github/)" :
+    target === "cursor"       ? "Cursor (.cursor/)" :
+    target === "antigravity"  ? "Antigravity (project root)" :
     "Export only (.epost-export/)";
 
   const scopeLabel =
@@ -329,9 +331,10 @@ export async function runInitWizard(
       : `This project (${projectName}/)`;
 
   const installDirName =
-    target === "claude"  ? ".claude" :
-    target === "vscode"  ? ".github" :
-    target === "cursor"  ? ".cursor" :
+    target === "claude"       ? ".claude" :
+    target === "vscode"       ? ".github" :
+    target === "cursor"       ? ".cursor" :
+    target === "antigravity"  ? "." :
     ".epost-export";
 
   const previewContent = [
@@ -377,6 +380,7 @@ export async function runInitWizard(
           { name: `Claude Code       ${pc.dim("→ .claude/")}`, value: "claude" as const },
           { name: `VS Code / Copilot ${pc.dim("→ .vscode/")}`, value: "vscode" as const },
           { name: `Cursor            ${pc.dim("→ .cursor/")}`, value: "cursor" as const },
+          { name: `Antigravity       ${pc.dim("→ GEMINI.md")}`, value: "antigravity" as const },
           { name: `Export only       ${pc.dim("→ no editor integration")}`, value: "export" as const },
         ],
         default: target,

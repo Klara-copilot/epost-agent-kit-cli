@@ -120,6 +120,7 @@ export interface ConvertOptions extends GlobalOptions {
   profile?: string;  // Profile filter
   dryRun?: boolean;  // Preview only, no files written
   source?: boolean;  // Use source repo (dev mode)
+  target?: "vscode" | "cursor" | "jetbrains"; // IDE target (default: vscode)
 }
 
 export interface RolesOptions extends GlobalOptions {
