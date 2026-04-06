@@ -4,7 +4,7 @@
  * GitHub-only distribution - downloads packages from Klara-copilot/epost_agent_kit
  */
 
-import { join, resolve, basename, dirname } from "node:path";
+import { join, resolve, basename, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   readFile,
@@ -13,6 +13,7 @@ import {
   copyFile,
   mkdir,
   rm,
+  access,
 } from "node:fs/promises";
 import ora from "ora";
 import pc from "picocolors";
@@ -30,6 +31,7 @@ import {
   readMetadata,
   writeMetadata,
   generateMetadata,
+  classifyFile,
 } from "@/services/file-operations/ownership.js";
 import { createBackup } from "@/services/file-operations/backup-manager.js";
 import { hashFile } from "@/services/file-operations/checksum.js";
@@ -57,7 +59,7 @@ import {
 } from "@/domains/installation/target-adapter.js";
 import { formatCompatibilityReport } from "@/domains/installation/compatibility-report.js";
 import type { InitOptions } from "@/types/commands.js";
-import type { FileOwnership } from "@/types/index.js";
+import type { FileOwnership, Metadata } from "@/types/index.js";
 import {
   getGitHubToken,
   checkRepoAccess,
@@ -335,7 +337,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     return;
   }
 
-  // ── Step 5/7: Backup then clean-wipe install dir ──
+  // ── Step 5/7: Backup then install (smart-merge or clean wipe) ──
   logger.step(5, 7, "Installing packages");
   if (isUpdate) {
     const backupSpinner = ora("Creating backup...").start();
@@ -343,9 +345,17 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     backupSpinner.succeed("Backup created");
   }
 
-  // Always wipe install dir for a clean, deterministic install
-  if (await dirExists(installDir)) {
-    await rm(installDir, { recursive: true, force: true });
+  // Build skip set for smart-merge: preserve user-modified files during update.
+  // --fresh bypasses this and does a clean wipe (old behavior).
+  const smartMergeSkipPaths = (isUpdate && !opts.fresh && metadata)
+    ? await buildSmartMergeSkipSet(projectDir, metadata)
+    : null;
+
+  if (!isUpdate || opts.fresh) {
+    // Fresh install or explicit --fresh: wipe for a clean, deterministic install
+    if (await dirExists(installDir)) {
+      await rm(installDir, { recursive: true, force: true });
+    }
   }
 
   const installSpinner = ora("Installing packages...").start();
@@ -402,6 +412,10 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
           if (srcSubDir === "settings.json") continue;
           if (srcSubDir === ".epost-kit.json") continue;
           if (srcSubDir === ".epost-ignore") continue;
+          if (smartMergeSkipPaths?.has(destPath)) {
+            logger.debug(`smart-merge: skip user-modified: ${join(installDirName, destSubDir)}`);
+            continue;
+          }
           await mkdir(join(destPath, ".."), { recursive: true });
           await copyFile(srcPath, destPath);
 
@@ -442,9 +456,17 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
             actualDestPath,
             adapter,
             isAgentDir ? "agent" : "skill",
+            smartMergeSkipPaths ?? undefined,
           );
         } else {
-          await safeCopyDir(srcPath, actualDestPath);
+          await safeCopyDir(srcPath, actualDestPath, {
+            filter: (srcFile) => {
+              if (!smartMergeSkipPaths) return true;
+              const rel = relative(srcPath, srcFile);
+              const destAbs = join(actualDestPath, rel);
+              return !smartMergeSkipPaths.has(destAbs);
+            },
+          });
           if (isHookDir) {
             // Replace .claude/ references in hook scripts for non-claude targets
             await replacePathsInDir(actualDestPath, adapter);
@@ -1197,6 +1219,31 @@ async function generateAgentsMd(
   await writeFile(outputPath, lines.join("\n"), "utf-8");
 }
 
+// ─── Utility: build set of absolute paths to skip during smart-merge update ───
+// Returns paths of files that exist AND have been modified by the user (checksum mismatch).
+// Kit-owned unmodified files and new files are NOT in this set and will be overwritten/created.
+
+async function buildSmartMergeSkipSet(
+  projectDir: string,
+  metadata: Metadata
+): Promise<Set<string>> {
+  const skipSet = new Set<string>();
+  for (const relPath of Object.keys(metadata.files)) {
+    const fullPath = join(projectDir, relPath);
+    try {
+      await access(fullPath);
+      const tier = await classifyFile(fullPath, projectDir, metadata);
+      if (tier === 'epost-modified') {
+        skipSet.add(fullPath);
+        logger.debug(`smart-merge: will preserve user-modified: ${relPath}`);
+      }
+    } catch {
+      // File doesn't exist — new file from kit, don't skip
+    }
+  }
+  return skipSet;
+}
+
 // ─── Utility: transform and copy directory through adapter ───
 
 async function transformAndCopyDir(
@@ -1204,6 +1251,7 @@ async function transformAndCopyDir(
   destDir: string,
   adapter: TargetAdapter,
   fileType: "agent" | "skill",
+  skipAbsPaths?: Set<string>,
 ): Promise<void> {
   const files = await scanDirFiles(srcDir);
   for (const relPath of files) {
@@ -1213,6 +1261,10 @@ async function transformAndCopyDir(
     if (!relPath.endsWith(".md")) {
       // Non-markdown: copy as-is with path refs replaced
       const destFile = join(destDir, relPath);
+      if (skipAbsPaths?.has(destFile)) {
+        logger.debug(`smart-merge: skip ${destFile}`);
+        continue;
+      }
       await mkdir(dirname(destFile), { recursive: true });
       await writeFile(destFile, adapter.replacePathRefs(content), "utf-8");
       continue;
@@ -1229,6 +1281,10 @@ async function transformAndCopyDir(
       fileType === "agent"
         ? join(destDir, dirname(relPath), result.filename)
         : join(destDir, result.filename);
+    if (skipAbsPaths?.has(destFile)) {
+      logger.debug(`smart-merge: skip ${destFile}`);
+      continue;
+    }
     await mkdir(dirname(destFile), { recursive: true });
     await writeFile(destFile, result.content, "utf-8");
   }

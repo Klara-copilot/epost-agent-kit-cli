@@ -48,6 +48,7 @@ export interface UpdateOptions extends GlobalOptions {
   json?: boolean;
   dryRun?: boolean;
   preview?: boolean;
+  fresh?: boolean;
 }
 
 export interface UninstallOptions extends GlobalOptions {

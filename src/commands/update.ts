@@ -88,12 +88,14 @@ export async function runUpdate(opts: UpdateOptions): Promise<void> {
     }
   }
 
-  // Import and run init with existing config — no prompts, clean reinstall
+  // Import and run init with existing config — no prompts
+  // smart-merge is default: preserve user-modified files, only overwrite kit-owned ones
+  // --fresh forces a clean wipe (old behavior)
   const { runInit } = await import("./init.js");
   await runInit({
     ...opts,
-    yes: true,        // skip all prompts
-    fresh: true,      // clean wipe + reinstall
+    yes: true,
+    fresh: opts.fresh ?? false,
     profile: metadata.profile,
     packages: metadata.installedPackages?.join(","),
     target: metadata.target,

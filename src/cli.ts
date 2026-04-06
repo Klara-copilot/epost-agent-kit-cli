@@ -275,6 +275,7 @@ cli
   .option("--json", "Output as JSON")
   .option("--dry-run", "Preview changes without applying")
   .option("--preview", "Preview changes without applying (alias for --dry-run)")
+  .option("--fresh", "Force clean wipe and reinstall (discards local customizations)")
   .action(async (opts: any) => {
     const { runUpdate } = await import("./commands/update.js");
     await runUpdate({
