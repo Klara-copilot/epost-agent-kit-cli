@@ -11,7 +11,8 @@ The epost-agent-kit-cli is a CLI tool for managing AI agent kit installations ac
 | Total LOC | ~8,200+ |
 | Commands | 7,576+ LOC (32 commands) |
 | Domains | ~8,000 LOC (15 domains) |
-| Services/Shared | ~535 LOC |
+| Services | 3 modules (file-operations, template-engine, transformers) |
+| Shared | 6 utilities (logger, file-system, path-resolver, terminal-utils, process-lock, environment) |
 | Tests | ~3,731 LOC (32 test files, 100% passing) |
 
 ## Directory Structure
@@ -30,18 +31,18 @@ src/
 
 ### Installation & Setup (3)
 - `new.ts` - Create new project from template
-- `init.ts` - Initialize kit in project
+- `init.ts` - Initialize kit (alias: `install`)
 - `onboard.ts` - Guided setup wizard
 
 ### Health & Validation (5)
 - `doctor.ts` - Health checks with auto-fix
-- `validate.ts` - Structured validation
-- `lint.ts` - Validate references
+- `validate.ts` - Structured validation (config, skills, routing, delegation, hooks)
+- `lint.ts` - Validate references and standards
 - `verify.ts` - Full audit
 - `repair.ts` - Auto-fix failures
 
 ### Status & Display (6)
-- `status.ts` - Show install configuration
+- `status.ts` - Show install scope/enabled items
 - `show.ts` - Display routing/config
 - `list.ts` - List installed items
 - `versions.ts` - Available versions
@@ -93,7 +94,7 @@ Environment verification (Node version, Claude dir, metadata, GitHub auth, file 
 CLAUDE.md generator, branding utilities.
 
 ### installation/
-Multi-IDE adapters (Claude, Cursor, Copilot, Export), template manager, smart merge, MDC/CLAUDE.md generators. Includes: claude-adapter.ts, cursor-adapter.ts, copilot-adapter.ts, export-adapter.ts, target-adapter.ts, mdc-generator.ts.
+Multi-IDE adapters (Claude, Cursor, Copilot, Export), template manager, smart merge, MDC/CLAUDE.md generators. Copilot adapter supports April 2026 VS Code agent spec with `.agent.md` output. Includes: claude-adapter.ts, cursor-adapter.ts, copilot-adapter.ts, export-adapter.ts, target-adapter.ts, mdc-generator.ts.
 
 ### packages/
 Package resolver with BFS + topological sort (Kahn's), profile loader, YAML parser, skill locator, role bundles.
@@ -116,13 +117,20 @@ Reference validator for kit integrity.
 ### versioning/
 Self-update and version comparison.
 
-## Services
+## Services (3 modules)
 
-Cross-cutting services for logging, file system operations, etc.
+**file-operations/** — SHA256 checksum tracking, backup/restore, file ownership classification
+**template-engine/** — Regex-based variable substitution, YAML template processing
+**transformers/** — Format converters (YAML→JSON, env→config)
 
-## Shared
+## Shared (6 utilities)
 
-Infrastructure utilities used across domains.
+**logger.ts** — Verbose logging, JSON output mode, multi-level severity
+**file-system.ts** — Atomic writes, temp file cleanup, safe directory operations
+**path-resolver.ts** — CWD detection, install directory resolution, cross-platform paths
+**terminal-utils.ts** — Colors, spinners, interactive prompts, table formatting
+**process-lock.ts** — Mutual exclusion, prevent concurrent CLI runs
+**environment.ts** — Environment variable parsing, defaults, validation
 
 ## Types
 
