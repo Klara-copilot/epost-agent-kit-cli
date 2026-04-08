@@ -2,15 +2,16 @@
 
 ## Current Status
 
-**Version:** 0.0.1 (first public npm release, @aavn/epost-kit)
-**Last Updated:** 2026-04-02
-**Test Status:** 103 tests passing (100%)
+**Version:** 0.1.0 (maintenance release, @aavn/epost-kit)
+**Last Updated:** 2026-04-06
+**Test Status:** ~3,731 test LOC across 32 files (100% passing)
 
 ## Completed Features
 
-### v0.0.1 (Current - Public npm release)
+### v0.1.0 (Current - Maintenance & Spec Updates)
 - 32 commands across 6 categories
 - Multi-platform support (Claude Code, Cursor, GitHub Copilot)
+- April 2026 VS Code agent spec support (copilot-adapter outputs `.agent.md`)
 - Package management with topological sort dependency resolution
 - Profile system with auto-detection and multi-profile selection
 - Smart merge with file ownership tracking via SHA256 checksums
@@ -18,41 +19,50 @@
 - Dev watcher for kit designers with live-sync
 - Claude Code → GitHub Copilot format conversion
 - Intent mapping and dry-run/trace diagnostics
-- Structured validation (config, skills, routing, hooks, delegation)
+- Structured validation (config, skills, routing, delegation, hooks)
 - TUI marketplace browser for discovery
-- 103 tests (100% passing)
+- ~3,731 test LOC (100% passing)
+- CI/CD improvements (manual publish workflow, validation scripts)
 
 ### Recent Commits
-- feat(install): migrate to public curl/irm install pattern
-- fix(ci): run install.ps1 directly in CMD test job
-- fix(build): use cross-platform chmod for dist/cli.js
-- fix(install): replace UTF-8 em-dashes with ASCII in ps1
-- fix(install): fix ps1 syntax error + CI-safe PATH handling
-- fix(install): replace base64 -d with jq @base64d for Windows compat
-- fix: set execute permission on dist/cli.js after build
-- fix: robust PATH verification for nvm/fnm users
+- Merge PR #11: Copilot spec update (April 2026)
+- test(path-resolver): CI compatibility fix
+- ci: add manual publish workflow and validation scripts
+- feat(copilot): update adapter to April 2026 VS Code agent spec
+- Merge PR #10: Lint cleanup + npm release docs
+- ci(install): npm-pack install jobs + registry verification
+- docs: update version references for v0.0.1 public npm release
+- fix(lint): resolve unused variable warnings
 
 ## Planned Features
 
-### v0.1.0 (Next)
+### v0.2.0 (Next)
 - [ ] Semver dependency constraints
 - [ ] Advanced package versioning
 - [ ] Local package caching (offline mode)
 - [ ] Enhanced package search and discovery
 - [ ] Performance optimizations for large package sets
 
-### v0.2.0 (Future)
+### v0.3.0 (Future)
 - [ ] Team-level configuration sync
 - [ ] Shared profile repositories
 - [ ] Multi-user conflict resolution
 
-## Completed in v0.0.1
+## v0.0.1 Completed Features
 
 ### Public npm release
 Published as scoped package `@aavn/epost-kit` to npmjs.com registry. Primary distribution method via `npm install -g @aavn/epost-kit`.
 
 ### convert command
 Converts Claude Code commands/agents/skills to GitHub Copilot format. Full implementation with format conversion logic and validation.
+
+## v0.1.0 Improvements
+
+### Copilot April 2026 spec support
+Updated copilot-adapter to support latest VS Code agent spec (April 2026). Now outputs `.agent.md` files to `.github/agents/` with proper frontmatter structure.
+
+### CI/CD enhancements
+Added manual publish workflow and npm-pack validation scripts for improved release reliability.
 
 ## Milestones
 
@@ -84,6 +94,7 @@ Converts Claude Code commands/agents/skills to GitHub Copilot format. Full imple
 |-------|--------|----------|
 | Core Foundation | Complete | 100% |
 | Multi-Platform | Complete | 100% |
+| April 2026 Spec Update | Complete | 100% |
 | Enterprise Features | Planned | 0% |
 | Ecosystem | Future | 0% |
 

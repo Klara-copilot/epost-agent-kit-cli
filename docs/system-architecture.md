@@ -119,7 +119,7 @@ Supported files (in order of precedence):
 Multi-level config loading (env > local > global), Zod validation, cosmiconfig integration.
 
 ### installation/
-Multi-IDE adapters (Claude, Cursor, Copilot, Export), template manager, smart merge, file generators. Supports claude-adapter, cursor-adapter, copilot-adapter, export-adapter, target-adapter, mdc-generator.
+Multi-IDE adapters (Claude, Cursor, Copilot, Export), template manager, smart merge, file generators. Copilot adapter generates `.agent.md` files per April 2026 VS Code spec. Supports claude-adapter, cursor-adapter, copilot-adapter, export-adapter, target-adapter, mdc-generator.
 
 ### packages/
 Package resolver with BFS + topological sort, profile loader, YAML parser, skill locator.

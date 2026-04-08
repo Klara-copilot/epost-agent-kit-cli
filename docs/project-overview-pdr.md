@@ -4,7 +4,7 @@
 
 **Project Name:** epost-agent-kit-cli
 **Project Type:** CLI Tool (Command-Line Interface)
-**Version:** 0.0.1 (npm: @aavn/epost-kit)
+**Version:** 0.1.0 (npm: @aavn/epost-kit)
 
 ## Purpose
 
@@ -29,27 +29,27 @@ Developers need a unified way to manage AI agent configurations across multiple 
 
 ## Commands (32 total, 6 categories)
 
-### Project Setup
+### Installation & Setup (3)
 - `new` - Create new project from template
-- `init` - Initialize kit in existing project
+- `init` - Initialize kit in existing project (alias: `install`)
 - `onboard` - Guided setup wizard
 
-### Health & Validation
+### Health & Validation (5)
 - `doctor` - Health checks with auto-fix
-- `validate` - Structured validation (config, skills, routing, hooks)
+- `validate` - Structured validation (config, skills, routing, delegation, hooks)
 - `lint` - Validate references and standards
 - `verify` - Full audit of installation
 - `repair` - Auto-fix validation failures
 
-### Status & Display
-- `status` - Show install scope and configuration
+### Status & Display (6)
+- `status` - Show install scope and enabled items
 - `show` - Display routing table or config
 - `list` - List installed items (skills, agents, hooks)
 - `versions` - Available version information
 - `roles` - List available roles
 - `profile` - Browse and inspect developer profiles
 
-### Package Management
+### Package Management (6)
 - `add` - Add skill or bundle to install
 - `remove` - Remove skill or bundle
 - `package` - Manage packages
@@ -57,13 +57,13 @@ Developers need a unified way to manage AI agent configurations across multiple 
 - `upgrade` - Check and apply updates
 - `uninstall` - Remove with ownership awareness
 
-### Development
+### Development (4)
 - `dev` - Watch and live-sync (kit authors)
 - `dev-spawn` - Spawn development processes
 - `browse` - TUI marketplace browser
 - `proposals` - List and apply proposals
 
-### Configuration & Tools
+### Configuration & Tools (8)
 - `config` - View and edit configuration
 - `dry-run-command` - Simulate routing without execution
 - `trace` - Verbose orchestration trace
@@ -92,11 +92,12 @@ Developers need a unified way to manage AI agent configurations across multiple 
 
 ## Success Metrics
 
-- 103 tests passing (100%)
+- ~3,731 test LOC across 32 files (100% passing)
 - CLI startup < 200ms
 - Full install (5-10 packages) < 30s
 - Profile detection < 5s
 - Health checks < 10s
+- Copilot adapter supports April 2026 VS Code agent spec
 
 ## Non-Goals
 
