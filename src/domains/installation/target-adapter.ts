@@ -75,7 +75,7 @@ export interface TargetAdapter {
    * Optional — adapters that don't support scoped instructions return undefined.
    */
   generateScopedInstructions?(
-    snippets: import("./claude-md-generator.js").PackageSnippet[],
+    _snippets: import("./claude-md-generator.js").PackageSnippet[],
   ): Array<{filename: string; content: string}>;
 }
 
