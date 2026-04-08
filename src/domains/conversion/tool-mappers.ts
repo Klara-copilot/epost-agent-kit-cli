@@ -1,6 +1,9 @@
 /**
  * Tool alias mappings from Claude-Code to GitHub Copilot
- * Based on: https://docs.github.com/en/copilot/reference/custom-agents-configuration
+ *
+ * Short-form tool names (read, edit, execute, search, web) are the valid `tools:` values
+ * in VS Code Copilot agent frontmatter — confirmed by VS Code "Configure Tools" UI (Apr 2026).
+ * Verbose names (readFile, editFiles, runInTerminal) are internal toolset sub-tools only.
  */
 
 /**

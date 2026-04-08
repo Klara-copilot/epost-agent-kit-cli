@@ -190,6 +190,38 @@ describe("CopilotAdapter", () => {
   });
 
   describe("transformAgent", () => {
+    it("uses short-form VS Code tool names (read/edit/execute/search/web)", () => {
+      const content = `---
+name: epost-developer
+description: Developer agent
+model: sonnet
+---
+Body`;
+      const result = adapter.transformAgent(content, "epost-developer.md");
+      // Verify short-form names are present
+      expect(result.content).toContain("tools: [read, edit, execute, search, web]");
+      // Verify verbose names are absent
+      expect(result.content).not.toContain("readFile");
+      expect(result.content).not.toContain("editFiles");
+      expect(result.content).not.toContain("runInTerminal");
+      expect(result.content).not.toContain("textSearch");
+      expect(result.content).not.toContain("listDirectory");
+    });
+
+    it("uses read-only tools for permissionMode: plan", () => {
+      const content = `---
+name: epost-reviewer
+description: Reviewer agent
+model: sonnet
+permissionMode: plan
+---
+Body`;
+      const result = adapter.transformAgent(content, "epost-reviewer.md");
+      expect(result.content).toContain("tools: [read, search, web]");
+      expect(result.content).not.toContain("edit");
+      expect(result.content).not.toContain("execute");
+    });
+
     it("includes handoffs from frontmatter when present", () => {
       const content = `---
 name: epost-architect
@@ -208,7 +240,20 @@ Body`;
       expect(result.content).toContain("agent: epost-implementer");
     });
 
-    it("produces no handoffs when agent frontmatter has none", () => {
+    it("produces no handoffs for agents not in HANDOFF_MAP", () => {
+      // epost-tester has no auto-generated handoffs
+      const content = `---
+name: epost-tester
+description: Tester agent
+model: sonnet
+---
+Body`;
+      const result = adapter.transformAgent(content, "epost-tester.md");
+      expect(result.content).not.toContain("handoffs:");
+    });
+
+    it("auto-generates handoffs for known workflow agents when frontmatter has none", () => {
+      // epost-planner is in HANDOFF_MAP — should get auto-generated handoffs
       const content = `---
 name: epost-planner
 description: Planner agent
@@ -216,17 +261,18 @@ model: sonnet
 ---
 Body`;
       const result = adapter.transformAgent(content, "epost-planner.md");
-      expect(result.content).not.toContain("handoffs:");
+      expect(result.content).toContain("handoffs:");
+      expect(result.content).toContain("agent: epost-fullstack-developer");
     });
 
-    it("produces no handoffs for empty handoffs array", () => {
-      // Edge case: handoffs: [] — no items, should be excluded
+    it("produces no handoffs for empty handoffs array on unknown agent", () => {
+      // Edge case: handoffs: [] — no items, unknown agent — should be excluded
       const content = `---
-name: epost-planner
-description: Planner agent
+name: epost-docs-manager
+description: Docs agent
 ---
 Body`;
-      const result = adapter.transformAgent(content, "epost-planner.md");
+      const result = adapter.transformAgent(content, "epost-docs-manager.md");
       expect(result.content).not.toContain("handoffs:");
     });
   });

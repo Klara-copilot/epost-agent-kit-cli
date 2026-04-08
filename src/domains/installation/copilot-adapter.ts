@@ -13,6 +13,7 @@ import {
   serializeFrontmatter,
 } from "./target-adapter.js";
 import type { CompatibilityWarning } from "./compatibility-report.js";
+import type { PackageSnippet } from "./claude-md-generator.js";
 
 // ── Mapping Tables ──
 
@@ -22,31 +23,50 @@ const MODEL_MAP: Record<string, string> = {
   opus: "Claude Opus 4.6",
 };
 
-// VS Code Copilot tool names (unquoted identifiers in YAML)
-// Correct names verified March 2026: execute, read, edit, search, web
+// VS Code Copilot built-in tool names — short-form identifiers confirmed by VS Code
+// "Configure Tools" UI panel (Apr 2026). Verbose sub-tool names (readFile, editFiles,
+// runInTerminal, textSearch, listDirectory) are internal toolset members and NOT valid
+// values in the `tools:` array of agent frontmatter.
 const TOOL_MAP: Record<string, string> = {
   Read: "read",
   Write: "edit",
   Edit: "edit",
   Bash: "execute",
   Grep: "search",
-  Glob: "read",
+  Glob: "search",       // search covers both text and file patterns
   WebFetch: "web",
   WebSearch: "web",
   Browser: "browser",
   Agent: "agent",
-  // Sub-tool specifiers (VS Code April 2026) — passthrough
+  TodoWrite: "todo",
   "web/fetch": "web/fetch",
   "search/codebase": "search/codebase",
   "search/usages": "search/usages",
   "search/file": "search/file",
 };
 
-// All VS Code Copilot built-in tools (verified March 2026)
-const DEFAULT_TOOLS = ["agent", "browser", "edit", "execute", "read", "search", "todo", "vscode", "web"];
+// Core VS Code Copilot built-in tools (short form, confirmed Apr 2026)
+const DEFAULT_TOOLS = ["read", "edit", "execute", "search", "web"];
 
 // Read-only subset for permissionMode: plan agents
-const READONLY_TOOLS = ["agent", "browser", "read", "search", "todo", "web"];
+const READONLY_TOOLS = ["read", "search", "web"];
+
+
+// Auto-generated handoffs for known agent workflow successors
+const HANDOFF_MAP: Record<string, Array<{label: string; agent: string; prompt: string}>> = {
+  "epost-planner": [
+    { label: "Implement Plan", agent: "epost-fullstack-developer", prompt: "Implement the plan outlined above." },
+  ],
+  "epost-fullstack-developer": [
+    { label: "Review Code", agent: "epost-code-reviewer", prompt: "Review the implementation for quality." },
+  ],
+  "epost-code-reviewer": [
+    { label: "Commit Changes", agent: "epost-git-manager", prompt: "Stage and commit the reviewed changes." },
+  ],
+  "epost-debugger": [
+    { label: "Run Tests", agent: "epost-tester", prompt: "Verify the fix with relevant tests." },
+  ],
+};
 
 // ── Adapter ──
 
@@ -86,6 +106,12 @@ export class CopilotAdapter implements TargetAdapter {
 
     if (Array.isArray(fm.handoffs) && fm.handoffs.length > 0) {
       newFm.handoffs = fm.handoffs;
+    } else {
+      // Auto-generate handoffs for known workflow agents (when not already specified)
+      const agentName = String(fm.name || "");
+      if (agentName && HANDOFF_MAP[agentName]) {
+        newFm.handoffs = HANDOFF_MAP[agentName];
+      }
     }
 
     // agents field — subagent delegation control (VS Code April 2026)
@@ -253,6 +279,35 @@ export class CopilotAdapter implements TargetAdapter {
       .replace(/\.cursor\//g, ".github/");
   }
 
+  generateScopedInstructions(snippets: PackageSnippet[]): Array<{filename: string; content: string}> {
+    const SCOPED_CONFIGS: Array<{
+      platformKey: string;
+      filename: string;
+      applyTo: string;
+    }> = [
+      { platformKey: "platform-web",     filename: "web.instructions.md",     applyTo: "**/*.{ts,tsx,scss,css}" },
+      { platformKey: "platform-ios",     filename: "ios.instructions.md",     applyTo: "**/*.swift" },
+      { platformKey: "platform-android", filename: "android.instructions.md", applyTo: "**/*.kt" },
+      { platformKey: "platform-backend", filename: "backend.instructions.md", applyTo: "**/*.java" },
+    ];
+
+    const results: Array<{filename: string; content: string}> = [];
+
+    for (const cfg of SCOPED_CONFIGS) {
+      const platformSnippets = snippets.filter((s) => s.packageName === cfg.platformKey);
+      if (platformSnippets.length === 0) continue;
+
+      const body = platformSnippets
+        .map((s) => stripFrontmatterContent(s.content))
+        .join("\n\n");
+
+      const content = `---\napplyTo: "${cfg.applyTo}"\n---\n${body}`;
+      results.push({ filename: `instructions/${cfg.filename}`, content });
+    }
+
+    return results;
+  }
+
   private buildToolsArray(fm: Record<string, unknown>): string[] {
     if (fm.permissionMode === "plan") return READONLY_TOOLS;
 
@@ -273,4 +328,11 @@ export class CopilotAdapter implements TargetAdapter {
 
     return DEFAULT_TOOLS.filter((t) => !disallowedCopilot.has(t));
   }
+}
+
+// ── Helpers ──
+
+function stripFrontmatterContent(content: string): string {
+  const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/);
+  return match ? match[1].trim() : content.trim();
 }

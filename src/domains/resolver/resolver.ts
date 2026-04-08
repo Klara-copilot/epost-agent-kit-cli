@@ -52,7 +52,6 @@ export function resolveDependencies(
   }));
 
   while (queue.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const { name, depth } = queue.shift()!;
 
     if (visited.has(name)) continue;

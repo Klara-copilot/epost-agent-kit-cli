@@ -47,7 +47,7 @@ import {
   type ClaudeMdContext,
   type PackageSnippet,
 } from "@/domains/help/claude-md-generator.js";
-import { generateMdcFile } from "@/domains/installation/mdc-generator.js";
+import { generateSplitMdcFiles } from "@/domains/installation/mdc-generator.js";
 import { detectProjectProfile, getProfileInfo } from "@/domains/packages/profile-loader.js";
 import { VERSION } from "@/domains/help/branding.js";
 import {
@@ -244,7 +244,7 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   logger.step(4, 7, "Add-ons");
 
   // ── Select IDE/editor ──
-  const validTargets: TargetName[] = ["claude", "cursor", "vscode", "export"];
+  const validTargets: TargetName[] = ["claude", "cursor", "vscode", "export", "jetbrains", "antigravity"];
   const target: TargetName =
     wizardTarget ||
     (opts.target as TargetName) ||
@@ -262,6 +262,37 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
   const installDirName = adapter.installDir;
   const installDir = join(projectDir, installDirName);
 
+  // Load manifests for install
+  const manifests = await loadAllManifests(packagesDir);
+
+  // JetBrains: short-circuit — only generate AGENTS.md at project root, no file copy
+  if (target === "jetbrains") {
+    await runJetBrainsInit(
+      adapter,
+      projectDir,
+      projectName,
+      resolved.packages,
+      packagesDir,
+      manifests,
+      profileName,
+    );
+    return;
+  }
+
+  // Antigravity: short-circuit — generate GEMINI.md + AGENTS.md + agents + skills + rules
+  if (target === "antigravity") {
+    await runAntigravityInit(
+      adapter,
+      projectDir,
+      projectName,
+      resolved.packages,
+      packagesDir,
+      manifests,
+      profileName,
+    );
+    return;
+  }
+
   // Phase 5 — dual-target detection: warn when VS Code install coexists with .claude/
   // VS Code Copilot natively reads .claude/agents/ AND .github/agents/ simultaneously.
   // This means agents installed here will appear twice in VS Code's agent picker.
@@ -273,9 +304,6 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
       "  This is expected if you use both Claude Code and VS Code Copilot.",
     );
   }
-
-  // Load manifests for install
-  const manifests = await loadAllManifests(packagesDir);
 
   // Build summary for display
   const pkgSummaries: PackageManifestSummary[] = resolved.packages
@@ -656,22 +684,26 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     );
     claudeSpinner.succeed("CLAUDE.md generated");
 
-    // Generate .cursor/rules/epost-kit.mdc for Cursor target
+    // Generate .cursor/rules/*.mdc split files for Cursor target
     if (target === "cursor") {
-      const mdcSpinner = ora("Generating .cursor/rules/epost-kit.mdc...").start();
+      const mdcSpinner = ora("Generating .cursor/rules/*.mdc (split by platform)...").start();
       const rulesDir = join(installDir, "rules");
       await mkdir(rulesDir, { recursive: true });
-      await generateMdcFile(cursorSnippets, join(rulesDir, "epost-kit.mdc"));
-      const mdcRelPath = join(".cursor", "rules", "epost-kit.mdc");
-      allFiles[mdcRelPath] = {
-        path: mdcRelPath,
-        checksum: "",
-        installedAt: new Date().toISOString(),
-        version: "generated",
-        modified: false,
-        package: "core",
-      };
-      mdcSpinner.succeed(".cursor/rules/epost-kit.mdc generated");
+      const writtenMdcFiles = await generateSplitMdcFiles(cursorSnippets, rulesDir);
+      for (const mdcFilename of writtenMdcFiles) {
+        const mdcRelPath = join(".cursor", "rules", mdcFilename);
+        allFiles[mdcRelPath] = {
+          path: mdcRelPath,
+          checksum: "",
+          installedAt: new Date().toISOString(),
+          version: "generated",
+          modified: false,
+          package: "core",
+        };
+      }
+      mdcSpinner.succeed(
+        `.cursor/rules/ generated: ${writtenMdcFiles.join(", ")}`,
+      );
     }
 
     // Copy GEMINI.md to project root (Gemini CLI system prompt — only if not present)
@@ -746,6 +778,33 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
     const instrPath = join(installDir, adapter.rootInstructionsFilename());
     await generateCopilotInstructions(instrContext, copilotSnippets, instrPath);
     copilotSpinner.succeed("copilot-instructions.md generated");
+
+    // Generate platform-scoped .instructions.md files for VS Code (Copilot)
+    if (target === "vscode" && adapter.generateScopedInstructions) {
+      const scopedSpinner = ora("Generating scoped instructions...").start();
+      const scopedFiles = adapter.generateScopedInstructions(copilotSnippets);
+      let scopedCount = 0;
+      for (const { filename, content } of scopedFiles) {
+        const filePath = join(installDir, filename);
+        await mkdir(join(filePath, ".."), { recursive: true });
+        await writeFile(filePath, content, "utf-8");
+        const relPath = join(installDirName, filename);
+        allFiles[relPath] = {
+          path: relPath,
+          checksum: "",
+          installedAt: new Date().toISOString(),
+          version: "generated",
+          modified: false,
+          package: "core",
+        };
+        scopedCount++;
+      }
+      if (scopedCount > 0) {
+        scopedSpinner.succeed(`Scoped instructions generated: ${scopedCount} files`);
+      } else {
+        scopedSpinner.warn("No scoped instructions generated (no platform snippets found)");
+      }
+    }
   }
 
   // ── Step 7/7: Finalize ──
@@ -811,6 +870,331 @@ async function runPackageInit(opts: InitOptions): Promise<void> {
           `Customize:  ${pc.bold("epost-kit config")}`,
         ].join("\n");
   console.log(box(readyMsg, { title: "Ready" }));
+}
+
+// ─── JetBrains: AGENTS.md-only init ───
+
+async function runJetBrainsInit(
+  adapter: TargetAdapter,
+  projectDir: string,
+  projectName: string,
+  packages: string[],
+  packagesDir: string,
+  manifests: Map<string, import("@/domains/packages/package-resolver.js").PackageManifest>,
+  profileName: string | undefined,
+): Promise<void> {
+  const agentsMdSpinner = ora("Generating AGENTS.md...").start();
+
+  // Collect snippets for AGENTS.md content
+  const snippetPackages: Array<{ name: string; dir: string; layer: number; snippetFile?: string }> = [];
+  for (const pkgName of packages) {
+    const manifest = manifests.get(pkgName);
+    if (!manifest) continue;
+    const pkgDir = join(packagesDir, pkgName);
+    const snippetFile = manifest.claude_snippet;
+    if (snippetFile) {
+      snippetPackages.push({ name: pkgName, dir: pkgDir, layer: manifest.layer, snippetFile });
+    }
+  }
+  const snippets = await collectSnippets(snippetPackages);
+
+  // Generate AGENTS.md at project root
+  const agentsMdPath = join(projectDir, adapter.rootInstructionsFilename());
+  await generateAgentsMd(projectName, profileName, packages, snippets, agentsMdPath);
+  agentsMdSpinner.succeed("AGENTS.md generated");
+
+  // Compatibility report — show JetBrains limitations
+  const warnings = adapter.getWarnings();
+  const compatReport = formatCompatibilityReport(warnings, "JetBrains");
+  if (compatReport) console.log("\n" + compatReport);
+
+  // Success summary
+  console.log("\n");
+  const summaryPairs: Array<[string, string]> = [];
+  if (profileName) summaryPairs.push(["Profile", profileName]);
+  summaryPairs.push(["Target", `JetBrains (project root)`]);
+  summaryPairs.push(["Packages", `${packages.length}`]);
+  summaryPairs.push(["Output", `AGENTS.md`]);
+  console.log(box(keyValue(summaryPairs, { indent: 0 }), { title: "Installation Complete" }));
+
+  const readyMsg = [
+    `Open JetBrains AI Assistant — ${pc.bold("AGENTS.md")} is auto-loaded.`,
+    ``,
+    `Describes your project agents, skills, and conventions.`,
+  ].join("\n");
+  console.log(box(readyMsg, { title: "Ready" }));
+}
+
+// ─── Antigravity: short-circuit init ───
+
+async function runAntigravityInit(
+  adapter: TargetAdapter,
+  projectDir: string,
+  projectName: string,
+  packages: string[],
+  packagesDir: string,
+  manifests: Map<string, import("@/domains/packages/package-resolver.js").PackageManifest>,
+  profileName: string | undefined,
+): Promise<void> {
+  // Collect snippets
+  const snippetPackages: Array<{ name: string; dir: string; layer: number; snippetFile?: string }> = [];
+  for (const pkgName of packages) {
+    const manifest = manifests.get(pkgName);
+    if (!manifest) continue;
+    const pkgDir = join(packagesDir, pkgName);
+    const snippetFile = manifest.claude_snippet;
+    if (snippetFile) {
+      snippetPackages.push({ name: pkgName, dir: pkgDir, layer: manifest.layer, snippetFile });
+    }
+  }
+  const snippets = await collectSnippets(snippetPackages);
+
+  // Generate GEMINI.md (Antigravity primary)
+  const geminiSpinner = ora("Generating GEMINI.md...").start();
+  const geminiMdPath = join(projectDir, "GEMINI.md");
+  await generateGeminiMd(projectName, profileName, packages, snippets, geminiMdPath);
+  geminiSpinner.succeed("GEMINI.md generated");
+
+  // Generate AGENTS.md (cross-tool standard)
+  const agentsSpinner = ora("Generating AGENTS.md...").start();
+  const agentsMdPath = join(projectDir, "AGENTS.md");
+  await generateAgentsMd(projectName, profileName, packages, snippets, agentsMdPath);
+  agentsSpinner.succeed("AGENTS.md generated");
+
+  // Convert Claude Code agents → .antigravity/agents/*.yaml
+  const agentSourceDir = join(projectDir, ".claude", "agents");
+  if (await dirExists(agentSourceDir)) {
+    const agentSpinner = ora("Converting agents to Antigravity YAML...").start();
+    const agentFiles = await readdir(agentSourceDir);
+    const antigravityAgentsDir = join(projectDir, ".antigravity", "agents");
+    await mkdir(antigravityAgentsDir, { recursive: true });
+    let agentCount = 0;
+    for (const filename of agentFiles) {
+      if (!filename.endsWith(".md")) continue;
+      const content = await readFile(join(agentSourceDir, filename), "utf-8");
+      const result = adapter.transformAgent(content, filename);
+      await writeFile(join(antigravityAgentsDir, result.filename), result.content, "utf-8");
+      agentCount++;
+    }
+    agentSpinner.succeed(`${agentCount} agents converted to .antigravity/agents/`);
+  }
+
+  // Convert skills → skills/*/SKILL.md (strip YAML frontmatter)
+  const skillSourceDir = join(projectDir, ".claude", "skills");
+  if (await dirExists(skillSourceDir)) {
+    const skillSpinner = ora("Converting skills (stripping frontmatter)...").start();
+    const skillDirs = await readdir(skillSourceDir);
+    let skillCount = 0;
+    for (const skillName of skillDirs) {
+      const skillMdPath = join(skillSourceDir, skillName, "SKILL.md");
+      if (!(await fileExists(skillMdPath))) continue;
+      const content = await readFile(skillMdPath, "utf-8");
+      const transformed = adapter.transformSkill(content);
+      const destPath = join(projectDir, "skills", skillName, "SKILL.md");
+      await mkdir(dirname(destPath), { recursive: true });
+      await writeFile(destPath, transformed, "utf-8");
+      skillCount++;
+    }
+    skillSpinner.succeed(`${skillCount} skills converted to skills/`);
+  }
+
+  // Generate .agent/rules/{platform}.md from platform snippets
+  const rulesSpinner = ora("Generating platform rules...").start();
+  const platformRules = generatePlatformRules(snippets);
+  if (platformRules.length > 0) {
+    const agentRulesDir = join(projectDir, ".agent", "rules");
+    await mkdir(agentRulesDir, { recursive: true });
+    for (const { filename, content } of platformRules) {
+      await writeFile(join(agentRulesDir, filename), content, "utf-8");
+    }
+    rulesSpinner.succeed(`Platform rules generated: ${platformRules.map((r) => r.filename).join(", ")}`);
+  } else {
+    rulesSpinner.warn("No platform rules generated (no platform snippets found)");
+  }
+
+  // Compatibility report
+  const warnings = adapter.getWarnings();
+  const compatReport = formatCompatibilityReport(warnings, "Antigravity");
+  if (compatReport) console.log("\n" + compatReport);
+
+  // Success summary
+  console.log("\n");
+  const summaryPairs: Array<[string, string]> = [];
+  if (profileName) summaryPairs.push(["Profile", profileName]);
+  summaryPairs.push(["Target", `Antigravity (project root)`]);
+  summaryPairs.push(["Packages", `${packages.length}`]);
+  summaryPairs.push(["Output", `GEMINI.md + AGENTS.md + .antigravity/agents/ + skills/ + .agent/rules/`]);
+  console.log(box(keyValue(summaryPairs, { indent: 0 }), { title: "Installation Complete" }));
+
+  const readyMsg = [
+    `Open Antigravity — ${pc.bold("GEMINI.md")} is auto-loaded as system prompt.`,
+    ``,
+    `Agent definitions: ${pc.dim(".antigravity/agents/")}`,
+    `Skills (invocable via /): ${pc.dim("skills/")}`,
+    `Platform rules: ${pc.dim(".agent/rules/")}`,
+  ].join("\n");
+  console.log(box(readyMsg, { title: "Ready" }));
+}
+
+// ─── Utility: generate GEMINI.md for Antigravity target ───
+
+async function generateGeminiMd(
+  projectName: string,
+  profileName: string | undefined,
+  packages: string[],
+  snippets: PackageSnippet[],
+  outputPath: string,
+): Promise<void> {
+  const lines: string[] = [
+    `# Agent System`,
+    ``,
+    `**Project**: ${projectName}`,
+    `**Profile**: ${profileName || "(custom)"}`,
+    `**Packages**: ${packages.join(", ")}`,
+    ``,
+    `This project uses [epost_agent_kit](https://github.com/Klara-copilot/epost_agent_kit),`,
+    `a multi-agent development toolkit. Open Antigravity to get started.`,
+    ``,
+    `## Agent Routing`,
+    ``,
+    `| Agent | Purpose | When to use |`,
+    `|-------|---------|-------------|`,
+    `| epost-fullstack-developer | Build and implement features | "add", "implement", "create", "make" |`,
+    `| epost-debugger | Fix bugs and diagnose errors | "broken", "crash", "why does X happen" |`,
+    `| epost-planner | Design phased implementation plans | "how should we build", "plan", "design" |`,
+    `| epost-brainstormer | Ideate and debate options | "options for", "compare", "tradeoffs" |`,
+    `| epost-code-reviewer | Review code quality and correctness | "review", "check my code", "audit" |`,
+    `| epost-tester | Write tests and validate coverage | "add tests", "test this", "coverage" |`,
+    `| epost-researcher | Research tech and best practices | "how does X work", "best practices" |`,
+    `| epost-docs-manager | Write and update documentation | "document this", "update docs" |`,
+    `| epost-git-manager | Commit, push, create PRs | "commit", "push", "create a PR", "ship" |`,
+    `| epost-muji | Design system and UI components | "component", "Figma", "design tokens" |`,
+    `| epost-a11y-specialist | Accessibility audits and fixes | "a11y", "accessibility", "WCAG" |`,
+    ``,
+  ];
+
+  // Include package snippets (platform conventions)
+  if (snippets.length > 0) {
+    lines.push(`## Platform Conventions`, ``);
+    for (const snippet of snippets) {
+      if (snippet.content) {
+        lines.push(snippet.content, ``);
+      }
+    }
+  }
+
+  lines.push(
+    `## Workspace Rules`,
+    ``,
+    `Platform-scoped rules are available in \`.agent/rules/\` — Antigravity loads these`,
+    `automatically based on the files you're editing.`,
+    ``,
+    `## Notes`,
+    ``,
+    `- Agent definitions: \`.antigravity/agents/*.yaml\``,
+    `- Skills (invocable via /): \`skills/\``,
+    `- For full agent capabilities, use Claude Code (\`epost-kit init --target claude\`)`,
+    ``,
+  );
+
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, lines.join("\n"), "utf-8");
+}
+
+// ─── Utility: generate platform rules from snippets ───
+
+function generatePlatformRules(
+  snippets: PackageSnippet[],
+): Array<{ filename: string; content: string }> {
+  const platformKeywords: Array<{ platform: string; keywords: string[] }> = [
+    { platform: "web",     keywords: ["platform-web", "web", "next", "react", "typescript"] },
+    { platform: "ios",     keywords: ["platform-ios", "ios", "swift", "swiftui"] },
+    { platform: "android", keywords: ["platform-android", "android", "kotlin", "compose"] },
+    { platform: "backend", keywords: ["platform-backend", "backend", "java", "jakarta"] },
+  ];
+
+  const results: Array<{ filename: string; content: string }> = [];
+
+  for (const { platform, keywords } of platformKeywords) {
+    const snippet = snippets.find((s) =>
+      keywords.some((kw) => s.packageName.toLowerCase().includes(kw)),
+    );
+    if (snippet?.content) {
+      results.push({ filename: `${platform}.md`, content: snippet.content });
+    }
+  }
+
+  return results;
+}
+
+// ─── Utility: generate AGENTS.md for JetBrains target ───
+
+async function generateAgentsMd(
+  projectName: string,
+  profileName: string | undefined,
+  packages: string[],
+  snippets: PackageSnippet[],
+  outputPath: string,
+): Promise<void> {
+  const lines: string[] = [
+    `# Agent System`,
+    ``,
+    `**Project**: ${projectName}`,
+    `**Profile**: ${profileName || "(custom)"}`,
+    `**Packages**: ${packages.join(", ")}`,
+    ``,
+    `This project uses [epost_agent_kit](https://github.com/Klara-copilot/epost_agent_kit),`,
+    `a multi-agent development toolkit. The agents below are available as AI assistants.`,
+    ``,
+    `## Agent Routing`,
+    ``,
+    `| Agent | Purpose | When to use |`,
+    `|-------|---------|-------------|`,
+    `| epost-fullstack-developer | Build and implement features | "add", "implement", "create", "make" |`,
+    `| epost-debugger | Fix bugs and diagnose errors | "broken", "crash", "why does X happen" |`,
+    `| epost-planner | Design phased implementation plans | "how should we build", "plan", "design" |`,
+    `| epost-brainstormer | Ideate and debate options | "options for", "compare", "tradeoffs" |`,
+    `| epost-code-reviewer | Review code quality and correctness | "review", "check my code", "audit" |`,
+    `| epost-tester | Write tests and validate coverage | "add tests", "test this", "coverage" |`,
+    `| epost-researcher | Research tech and best practices | "how does X work", "best practices" |`,
+    `| epost-docs-manager | Write and update documentation | "document this", "update docs" |`,
+    `| epost-git-manager | Commit, push, create PRs | "commit", "push", "create a PR", "ship" |`,
+    `| epost-muji | Design system and UI components | "component", "Figma", "design tokens" |`,
+    `| epost-a11y-specialist | Accessibility audits and fixes | "a11y", "accessibility", "WCAG" |`,
+    ``,
+  ];
+
+  // Include package snippets (platform conventions)
+  if (snippets.length > 0) {
+    lines.push(`## Platform Conventions`, ``);
+    for (const snippet of snippets) {
+      if (snippet.content) {
+        lines.push(snippet.content, ``);
+      }
+    }
+  }
+
+  lines.push(
+    `## Key Commands`,
+    ``,
+    `| Command | What it does |`,
+    `|---------|-------------|`,
+    `| \`/cook\` | Implement a feature from a plan |`,
+    `| \`/fix\` | Debug and fix an error |`,
+    `| \`/plan\` | Create a phased implementation plan |`,
+    `| \`/audit\` | Run a quality audit |`,
+    `| \`/git\` | Commit, push, or create a PR |`,
+    ``,
+    `## Notes`,
+    ``,
+    `- Agents coordinate via the orchestration protocol in \`.claude/rules/orchestration-protocol.md\``,
+    `- Skills provide passive knowledge loaded on demand`,
+    `- For full agent capabilities, use Claude Code (\`epost-kit init --target claude\`)`,
+    ``,
+  );
+
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, lines.join("\n"), "utf-8");
 }
 
 // ─── Utility: transform and copy directory through adapter ───

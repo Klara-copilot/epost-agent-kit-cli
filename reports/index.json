@@ -1,0 +1,25 @@
+{
+  "reports": [
+    {
+      "id": "copilot-adapter-audit-260309",
+      "path": "epost-researcher-260309-1011-copilot-adapter-audit.md",
+      "title": "VS Code Copilot Adapter Installation Audit",
+      "date": "2026-03-09",
+      "agent": "epost-researcher",
+      "status": "ACTIONABLE",
+      "severity": {
+        "high": 3,
+        "medium": 6,
+        "low": 3
+      },
+      "tags": ["copilot", "installation", "validation", "vscode", "adaptation"],
+      "scope": "luz_next/.github/ Copilot installation vs. correct VS Code format",
+      "summary": "Deep scan identified 3 HIGH, 6 MEDIUM, 3 LOW severity issues in luz_next Copilot installation: handoffs serialization broken, unsupported hook events configured, duplicate hook scripts."
+    }
+  ],
+  "metadata": {
+    "generated": "2026-03-09T10:11:00Z",
+    "totalReports": 1,
+    "version": "1.0"
+  }
+}
