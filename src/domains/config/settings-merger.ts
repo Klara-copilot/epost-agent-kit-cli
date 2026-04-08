@@ -83,7 +83,7 @@ export async function loadPackageSettings(
   try {
     const settings = JSON.parse(content);
     return { packageName, strategy, settings };
-  } catch (error) {
+  } catch {
     logger.warn(`[settings] Invalid JSON in ${settingsPath}, skipping`);
     return null;
   }

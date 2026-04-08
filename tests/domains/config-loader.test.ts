@@ -2,7 +2,7 @@
  * Unit tests for ConfigSchema — skills.research validation and env var override
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { ConfigSchema } from '@/domains/config/config-loader.js';
 import { z } from 'zod';
 

@@ -7,14 +7,12 @@ set -e
 # Clones the CLI repo to ~/.epost-kit/cli/, builds, and links globally.
 #
 # Requirements:
-#   - GitHub CLI (gh), authenticated
+#   - git
 #   - Node.js >= 18.0.0
 #   - npm
 #
 # Usage:
-#   bash install.sh
-#   gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh \
-#     --jq .content | base64 -d | bash
+#   curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.sh | bash
 # ============================================================================
 
 CLI_REPO="Klara-copilot/epost-agent-kit-cli"
@@ -40,17 +38,10 @@ warn()    { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
 
 info "Checking prerequisites..."
 
-# Check gh CLI installed
-command -v gh >/dev/null 2>&1 || {
-  error "GitHub CLI (gh) not installed"
-  error "Install from: https://cli.github.com/"
-  exit 1
-}
-
-# Check gh auth
-gh auth status >/dev/null 2>&1 || {
-  error "Not authenticated with GitHub CLI"
-  error "Run: gh auth login"
+# Check git
+command -v git >/dev/null 2>&1 || {
+  error "git not installed"
+  error "Install from: https://git-scm.com/"
   exit 1
 }
 
@@ -89,8 +80,8 @@ if [ -d "$CLI_DIR/.git" ]; then
   }
 else
   info "Cloning CLI repository to $CLI_DIR..."
-  gh repo clone "$CLI_REPO" "$CLI_DIR" -- --branch "$CLI_BRANCH" || {
-    error "Clone failed. Check your GitHub access to $CLI_REPO"
+  git clone --branch "$CLI_BRANCH" "https://github.com/${CLI_REPO}.git" "$CLI_DIR" || {
+    error "Clone failed. Check your network connection."
     exit 1
   }
 fi
@@ -195,5 +186,7 @@ fi
 
 printf "\n${GREEN}Installation complete!${NC}\n\n"
 printf "  ${BLUE}Next steps:${NC}\n"
-printf "    epost-kit init     # Set up kit in your project\n"
+printf "    epost-kit install  # Set up kit in your project\n"
 printf "    epost-kit doctor   # Check installation health\n\n"
+printf "  ${YELLOW}Note:${NC} GitHub CLI (gh) is required to use 'epost-kit install'.\n"
+printf "    Install: https://cli.github.com/ and run: gh auth login\n\n"

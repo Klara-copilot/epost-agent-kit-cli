@@ -184,7 +184,7 @@ export async function runInitWizard(
   let selectedSkill: WizardState["selectedSkill"] | undefined;
   let selectedBundle: string | undefined;
   let addonPackages: string[] = [];
-  let excludePackages: string[] = [];
+  const excludePackages: string[] = [];
   let profileName: string | undefined;
   let resolvedPackages: string[] = [];
 

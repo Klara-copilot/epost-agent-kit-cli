@@ -68,6 +68,18 @@ describe("formatCommandAsAgent", () => {
     expect(agent.tools).toContain("execute");
   });
 
+  it("sets target: vscode", () => {
+    const cmd: ClaudeCommand = {
+      sourcePath: "test.md",
+      name: "test",
+      title: "Test",
+      description: "Test",
+      content: "Content",
+      hasArguments: false,
+    };
+    expect(formatCommandAsAgent(cmd).target).toBe("vscode");
+  });
+
   it("should use fallback description if missing", () => {
     const cmd: ClaudeCommand = {
       sourcePath: "test.md",
@@ -97,6 +109,16 @@ describe("formatAgentAsAgent", () => {
     expect(result.description).toBe("A test agent");
     expect(result.tools).toBeDefined();
     expect(result.userInvocable).toBe(true);
+  });
+
+  it("sets target: vscode", () => {
+    const agent: ClaudeAgent = {
+      sourcePath: "test.md",
+      name: "test",
+      description: "Test",
+      content: "Content",
+    };
+    expect(formatAgentAsAgent(agent).target).toBe("vscode");
   });
 
   it("should truncate long content", () => {

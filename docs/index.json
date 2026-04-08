@@ -1,0 +1,130 @@
+{
+  "version": "1.0.0",
+  "description": "epost-agent-kit-cli Knowledge Base Registry (@aavn/epost-kit v0.0.1)",
+  "updatedAt": "2026-04-03T12:39:00Z",
+  "entries": [
+    {
+      "id": "ARCH-001",
+      "title": "Project Overview - PDR",
+      "category": "architecture",
+      "file": "project-overview-pdr.md",
+      "description": "Product Design Record: CLI tool for managing AI agent kit installations across Claude Code, Cursor, and GitHub Copilot. Defines 32 commands, goals, success metrics, and target users.",
+      "tags": [
+        "project-scope",
+        "requirements",
+        "commands",
+        "multi-platform",
+        "PDR"
+      ],
+      "agentHint": "planner, fullstack-developer"
+    },
+    {
+      "id": "ARCH-002",
+      "title": "Codebase Summary",
+      "category": "architecture",
+      "file": "codebase-summary.md",
+      "description": "High-level overview of 8,200+ LOC codebase: 4-layer architecture, 32 commands, 15 domain areas, test coverage, and key files with LOC breakdown.",
+      "tags": [
+        "codebase-structure",
+        "statistics",
+        "commands",
+        "domains",
+        "testing"
+      ],
+      "agentHint": "explorer, researcher, fullstack-developer"
+    },
+    {
+      "id": "ARCH-003",
+      "title": "System Architecture",
+      "category": "architecture",
+      "file": "system-architecture.md",
+      "description": "4-layer clean architecture design: CLI → Commands → Domains → Services/Shared. Core algorithms (topological sort, smart merge, YAML parser), data flow, file safety system, and 15 domain responsibilities.",
+      "tags": [
+        "architecture",
+        "layers",
+        "algorithms",
+        "design-patterns",
+        "data-flow",
+        "file-safety"
+      ],
+      "agentHint": "architect, fullstack-developer, code-reviewer"
+    },
+    {
+      "id": "CONV-001",
+      "title": "Code Standards",
+      "category": "conventions",
+      "file": "code-standards.md",
+      "description": "Development conventions: kebab-case naming, <200 LOC modularization, TypeScript strict mode, error handling, testing targets (70% coverage), and git commit format (conventional commits).",
+      "tags": [
+        "naming-conventions",
+        "modularization",
+        "typescript",
+        "error-handling",
+        "testing",
+        "git-workflow"
+      ],
+      "agentHint": "code-reviewer, fullstack-developer"
+    },
+    {
+      "id": "GUIDE-001",
+      "title": "Project Roadmap",
+      "category": "guides",
+      "file": "project-roadmap.md",
+      "description": "Release roadmap: v0.0.1 complete (npm release @aavn/epost-kit, 32 commands, multi-platform, 103 tests), v0.1.0 planned (semver constraints, caching), phases 1-2 complete, phases 3+ future. Includes contribution guidelines.",
+      "tags": [
+        "roadmap",
+        "releases",
+        "milestones",
+        "planned-features",
+        "progress-tracking",
+        "contribution"
+      ],
+      "agentHint": "planner, project-manager"
+    },
+    {
+      "id": "ADR-001",
+      "title": "Cursor Adapter Strategy",
+      "category": "decisions",
+      "file": "decisions/ADR-001-cursor-adapter-strategy.md",
+      "description": "Decision: Use shared ClaudeAdapter for both Claude and Cursor targets (pass-through approach). Cursor agents use same .md + YAML format as Claude Code; unsupported fields are silently ignored. Add warning collection for incompatible features.",
+      "tags": [
+        "cursor-integration",
+        "adapter-pattern",
+        "multi-ide",
+        "format-compatibility",
+        "field-warnings"
+      ],
+      "agentHint": "architect, fullstack-developer"
+    },
+    {
+      "id": "ADR-002",
+      "title": "VS Code Native Claude Detection Strategy",
+      "category": "decisions",
+      "file": "decisions/ADR-002-vscode-native-claude-detection.md",
+      "description": "Decision: Keep full duplication strategy in CopilotAdapter for .github/agents/. VS Code reads .claude/ natively but full duplication ensures VS Code-only users have agents accessible via explicit convention. Add dual-target detection warning.",
+      "tags": [
+        "vscode-copilot",
+        "agent-duplication",
+        "multi-ide",
+        "adapter-pattern",
+        "explicit-convention"
+      ],
+      "agentHint": "architect, fullstack-developer"
+    },
+    {
+      "id": "FINDING-001",
+      "title": "Fix Install Scripts - Install Completes but Binary Not Found",
+      "category": "findings",
+      "file": "journals/2026-03-31-fix-install-scripts.md",
+      "description": "Post-mortem: Install scripts were incomplete (no npm build/link). Root cause: script treated CLI as data package, not binary tool. Fixed by adding build + link steps. Lesson: always test happy path to completion.",
+      "tags": [
+        "install-scripts",
+        "post-mortem",
+        "binary-installation",
+        "npm-link",
+        "root-cause-analysis"
+      ],
+      "agentHint": "debugger, fullstack-developer"
+    }
+  ]
+}

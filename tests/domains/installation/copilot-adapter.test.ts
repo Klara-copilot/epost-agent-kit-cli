@@ -126,6 +126,69 @@ describe("CopilotAdapter", () => {
     });
   });
 
+  describe("transformAgent — target field", () => {
+    it("emits target: vscode in agent frontmatter", () => {
+      const content = `---\nname: test\ndescription: Test\nmodel: sonnet\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      expect(result.content).toContain("target: vscode");
+    });
+  });
+
+  describe("transformAgent — model handling", () => {
+    it("maps single model string via MODEL_MAP", () => {
+      const content = `---\nname: test\ndescription: Test\nmodel: opus\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      expect(result.content).toContain("model: Claude Opus 4.6");
+    });
+
+    it("maps model array preserving order", () => {
+      const content = `---\nname: test\ndescription: Test\nmodel: [opus, GPT-5.2]\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      // serializeFrontmatter quotes values with spaces/dots (non-alphanumeric-dash)
+      expect(result.content).toContain("model: ['Claude Opus 4.6', 'GPT-5.2']");
+    });
+
+    it("passes through unknown model names untouched", () => {
+      const content = `---\nname: test\ndescription: Test\nmodel: custom-model-v3\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      expect(result.content).toContain("model: custom-model-v3");
+    });
+  });
+
+  describe("transformAgent — tools and agents (April 2026)", () => {
+    it("maps sub-tool specifier search/codebase through TOOL_MAP", () => {
+      const content = `---\nname: test\ndescription: Test\ntools: [Read, search/codebase]\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      expect(result.content).toContain("search/codebase");
+      expect(result.content).toContain("read");
+    });
+
+    it("uses explicit tools list when present in source", () => {
+      const content = `---\nname: test\ndescription: Test\ntools: [Read, Bash, web/fetch]\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      // serializeFrontmatter quotes values with '/' (non-alphanumeric-dash)
+      expect(result.content).toContain("tools: [read, execute, 'web/fetch']");
+    });
+
+    it("passes through agents: '*' (allow all) with quotes", () => {
+      const content = `---\nname: test\ndescription: Test\nagents: '*'\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      expect(result.content).toContain("agents: '*'");
+    });
+
+    it("passes through agents as explicit list", () => {
+      const content = `---\nname: test\ndescription: Test\nagents: [reviewer, planner]\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      expect(result.content).toContain("agents: [reviewer, planner]");
+    });
+
+    it("omits agents field when not present in source", () => {
+      const content = `---\nname: test\ndescription: Test\n---\nBody`;
+      const result = adapter.transformAgent(content, "test.md");
+      expect(result.content).not.toContain("agents:");
+    });
+  });
+
   describe("transformAgent", () => {
     it("uses short-form VS Code tool names (read/edit/execute/search/web)", () => {
       const content = `---
@@ -211,6 +274,15 @@ description: Docs agent
 Body`;
       const result = adapter.transformAgent(content, "epost-docs-manager.md");
       expect(result.content).not.toContain("handoffs:");
+    });
+  });
+
+  describe("transformSkill", () => {
+    it("preserves user-invocable without introducing typo transform", () => {
+      const input = "This skill is user-invocable.";
+      const result = adapter.transformSkill(input);
+      expect(result).toContain("user-invocable");
+      expect(result).not.toContain("user-invokable");
     });
   });
 

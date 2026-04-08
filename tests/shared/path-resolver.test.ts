@@ -1,8 +1,35 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { KitPathResolver } from '@/shared/path-resolver.js';
 
 describe('KitPathResolver', () => {
   let resolver: KitPathResolver;
+  let tmpKitRoot: string;
+  let savedEnv: string | undefined;
+
+  beforeAll(async () => {
+    // Create a minimal valid kit root fixture so tests work in CI
+    // (no sibling epost-agent-kit repo is available on GitHub Actions)
+    tmpKitRoot = await mkdtemp(join(tmpdir(), 'epost-kit-test-'));
+    await mkdir(join(tmpKitRoot, 'packages', 'core'), { recursive: true });
+    await mkdir(join(tmpKitRoot, 'profiles'), { recursive: true });
+    await writeFile(join(tmpKitRoot, 'packages', 'core', 'package.yaml'), 'name: core\n');
+    await writeFile(join(tmpKitRoot, 'profiles', 'profiles.yaml'), 'profiles: []\n');
+
+    savedEnv = process.env.EPOST_KIT_ROOT;
+    process.env.EPOST_KIT_ROOT = tmpKitRoot;
+  });
+
+  afterAll(async () => {
+    await rm(tmpKitRoot, { recursive: true, force: true });
+    if (savedEnv !== undefined) {
+      process.env.EPOST_KIT_ROOT = savedEnv;
+    } else {
+      delete process.env.EPOST_KIT_ROOT;
+    }
+  });
 
   beforeEach(() => {
     resolver = new KitPathResolver();
@@ -53,7 +80,6 @@ describe('KitPathResolver', () => {
   });
 
   it('should throw error when EPOST_KIT_ROOT is invalid', async () => {
-    // Set invalid EPOST_KIT_ROOT
     const originalEnv = process.env.EPOST_KIT_ROOT;
     process.env.EPOST_KIT_ROOT = '/nonexistent/invalid/path';
 
@@ -61,12 +87,7 @@ describe('KitPathResolver', () => {
       const badResolver = new KitPathResolver();
       await expect(badResolver.resolve()).rejects.toThrow('EPOST_KIT_ROOT is set but invalid');
     } finally {
-      // Restore original env
-      if (originalEnv) {
-        process.env.EPOST_KIT_ROOT = originalEnv;
-      } else {
-        delete process.env.EPOST_KIT_ROOT;
-      }
+      process.env.EPOST_KIT_ROOT = originalEnv;
     }
   });
 

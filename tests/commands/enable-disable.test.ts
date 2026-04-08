@@ -3,7 +3,7 @@
  * Tests config state transitions for skills and hooks.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { EpostProjectConfig } from '@/types/epost-config.js';
 
 // ─── Helpers ───

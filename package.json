@@ -1,6 +1,6 @@
 {
-  "name": "epost-kit",
-  "version": "2.0.0",
+  "name": "@aavn/epost-kit",
+  "version": "0.0.1",
   "description": "Distribution CLI for epost-agent-kit - multi-IDE agent framework",
   "type": "module",
   "bin": {
@@ -10,7 +10,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc && tsc-alias && chmod +x dist/cli.js",
+    "build": "tsc && tsc-alias && node -e \"if(process.platform!=='win32')require('fs').chmodSync('dist/cli.js',0o755)\"",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -44,8 +44,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Klara-copilot/epost_agent_kit.git",
-    "directory": "epost-agent-cli"
+    "url": "git+https://github.com/Klara-copilot/epost-agent-kit-cli.git"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.2.0",

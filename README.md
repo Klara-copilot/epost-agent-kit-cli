@@ -2,25 +2,40 @@
 
 Distribution CLI for epost-agent-kit — installs and manages the multi-IDE AI agent framework across Claude Code, Cursor, and VS Code GitHub Copilot.
 
-**Version:** 2.0.0 | **Node:** >= 18.0.0 | **License:** MIT
+**Version:** 0.0.1 | **Node:** >= 18.0.0 | **License:** MIT
 
 ---
 
 ## Installation
 
-**Prerequisite:** GitHub CLI authenticated (`gh auth login`)
+**Prerequisites:** Node.js >= 18, git
 
-**macOS / Linux:**
+Note: GitHub CLI (gh) is required after install to use `epost-kit install`.
+
+### Recommended — npm (all platforms)
+
 ```bash
-gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.sh --jq .content | base64 -d | bash
+npm install -g @aavn/epost-kit
+```
+
+### Alternative — install scripts
+
+**macOS / Linux / WSL:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-$script = gh api repos/Klara-copilot/epost-agent-kit-cli/contents/install/install.ps1 --jq .content | base64 -d; Invoke-Expression $script
+irm https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.ps1 | iex
 ```
 
-See [install/README.md](./install/README.md) for manual installation and troubleshooting.
+**Windows (Command Prompt, fallback):**
+```cmd
+curl -fsSL https://raw.githubusercontent.com/Klara-copilot/epost-agent-kit-cli/master/install/install.cmd -o "%TEMP%\epost-kit-install.cmd" && "%TEMP%\epost-kit-install.cmd" && del "%TEMP%\epost-kit-install.cmd"
+```
+
+For manual installation and troubleshooting, see [install/README.md](./install/README.md).
 
 ---
 
@@ -313,6 +328,8 @@ Kit config is stored in `<installDir>/.epost-kit.json`. Edit via `epost-kit conf
 
 ## Development
 
+Local development setup for contributors working from a checkout of this CLI:
+
 ```bash
 git clone <repo>
 cd epost-agent-kit-cli
@@ -377,4 +394,4 @@ src/
 
 ---
 
-*Last updated 2026-03-31*
+*Last updated 2026-04-01*

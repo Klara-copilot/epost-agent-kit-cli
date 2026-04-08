@@ -37,10 +37,10 @@ export interface TargetAdapter {
   readonly installDir: string; // '.claude' | '.cursor' | '.github'
 
   /** Transform an agent .md file. */
-  transformAgent(content: string, filename: string): TransformResult;
+  transformAgent(_content: string, _filename: string): TransformResult;
 
   /** Transform a SKILL.md file. */
-  transformSkill(content: string): string;
+  transformSkill(_content: string): string;
 
   /**
    * Transform settings.json hooks → target hook format.
@@ -48,7 +48,7 @@ export interface TargetAdapter {
    * `droppedFeatures` is populated when features could not be translated.
    */
   transformHooks(
-    settingsJson: Record<string, unknown>,
+    _settingsJson: Record<string, unknown>,
   ): { content: string; filename: string; droppedFeatures?: DroppedFeature[] } | null;
 
   /** Whether this target uses settings.json as-is (true for claude/cursor). */
@@ -61,7 +61,7 @@ export interface TargetAdapter {
   rootInstructionsFilename(): string;
 
   /** Replace install dir path references in content (e.g., .claude/ → .github/) */
-  replacePathRefs(content: string): string;
+  replacePathRefs(_content: string): string;
 
   /**
    * Returns all compatibility warnings collected during transforms.
@@ -226,7 +226,8 @@ export function serializeFrontmatter(
       lines.push(`${key}: [${items.join(", ")}]`);
     } else if (typeof value === "object") {
       continue; // non-array objects skipped
-    } else if (typeof value === "string" && value.includes(":")) {
+    } else if (typeof value === "string" && (value === "*" || value.includes(":"))) {
+      // '*' is a YAML anchor reference — must be quoted; also quote strings with ':'
       lines.push(`${key}: '${value}'`);
     } else {
       lines.push(`${key}: ${value}`);

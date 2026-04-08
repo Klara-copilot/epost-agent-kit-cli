@@ -3,7 +3,7 @@
  * Validates: passes when validate passes, runs init on failure.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // ─── runRepair integration stubs ───────────────────────────────────────────
 

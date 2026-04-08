@@ -3,7 +3,6 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { join } from 'node:path';
 import { createTempDir, cleanupTempDir, createFileStructure } from '../../helpers/test-utils.js';
 
 // Mock execa so we control whether `gemini` binary is found
