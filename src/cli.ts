@@ -484,72 +484,97 @@ cli
     await runDev({ ...cli.globalCommand.options, ...opts });
   });
 
-// Command: config - View and edit kit configuration
+// Command: config show
 cli
   .command("config show", "Show current .epost-kit.json configuration")
   .option("--dir <path>", "Target project directory")
   .option("--json", "Output as JSON")
+  .option("--global", "Show global config only")
+  .option("--local", "Show project config only")
+  .option("--sources", "Show where each value comes from")
   .action(async (opts: any) => {
-    const { runConfigShow } = await import("./commands/config.js");
-    await runConfigShow({ ...cli.globalCommand.options, ...opts });
+    const { runShow } = await import("./commands/config/index.js");
+    await runShow({ ...cli.globalCommand.options, ...opts });
   });
 
+// Command: config get
 cli
   .command("config get <key>", "Get a config value by dot-notation key (e.g. plan.dateFormat)")
   .option("--dir <path>", "Target project directory")
   .option("--json", "Output as JSON")
+  .option("--global", "Read from global config")
+  .option("--local", "Read from project config")
   .action(async (key: any, opts: any) => {
-    const { runConfigGet } = await import("./commands/config.js");
-    await runConfigGet({ ...cli.globalCommand.options, ...opts, key });
+    const { runGet } = await import("./commands/config/index.js");
+    await runGet({ ...cli.globalCommand.options, ...opts, key });
   });
 
+// Command: config set
 cli
   .command("config set <key> <value>", "Set a config value by dot-notation key")
   .option("--dir <path>", "Target project directory")
+  .option("--global", "Write to global config")
+  .option("--local", "Write to project config")
   .action(async (key: any, value: any, opts: any) => {
-    const { runConfigSet } = await import("./commands/config.js");
-    await runConfigSet({ ...cli.globalCommand.options, ...opts, key, value });
+    const { runSet } = await import("./commands/config/index.js");
+    await runSet({ ...cli.globalCommand.options, ...opts, key, value });
   });
 
+// Command: config reset
 cli
   .command("config reset", "Restore .epost-kit.json defaults from installed packages")
   .option("--dir <path>", "Target project directory")
   .action(async (opts: any) => {
-    const { runConfigReset } = await import("./commands/config.js");
-    await runConfigReset({ ...cli.globalCommand.options, ...opts });
+    const { runReset } = await import("./commands/config/index.js");
+    await runReset({ ...cli.globalCommand.options, ...opts });
   });
 
+// Command: config ignore
 cli
   .command("config ignore", "Show current .epost-ignore patterns")
   .option("--dir <path>", "Target project directory")
   .option("--json", "Output as JSON")
   .action(async (opts: any) => {
-    const { runConfigIgnore } = await import("./commands/config.js");
+    const { runConfigIgnore } = await import("./commands/config/index.js");
     await runConfigIgnore({ ...cli.globalCommand.options, ...opts });
   });
 
+// Command: config ignore add
 cli
   .command("config ignore add <pattern>", "Append a pattern to .epost-ignore")
   .option("--dir <path>", "Target project directory")
   .action(async (pattern: any, opts: any) => {
-    const { runConfigIgnoreAdd } = await import("./commands/config.js");
+    const { runConfigIgnoreAdd } = await import("./commands/config/index.js");
     await runConfigIgnoreAdd({ ...cli.globalCommand.options, ...opts, pattern });
   });
 
+// Command: config ignore remove
 cli
   .command("config ignore remove <pattern>", "Remove a pattern from .epost-ignore")
   .option("--dir <path>", "Target project directory")
   .action(async (pattern: any, opts: any) => {
-    const { runConfigIgnoreRemove } = await import("./commands/config.js");
+    const { runConfigIgnoreRemove } = await import("./commands/config/index.js");
     await runConfigIgnoreRemove({ ...cli.globalCommand.options, ...opts, pattern });
   });
 
-// Bare `config` — interactive TUI (registered after subcommands so preprocessor routes correctly)
+// Command: config ui — web dashboard (MUST be before bare config for CAC matching)
+cli
+  .command("config ui", "Launch web dashboard for visual config editing")
+  .option("--port <number>", "Port number (default: auto-select 3456-3460)")
+  .option("--host <addr>", "Bind address (default: localhost)")
+  .option("--no-open", "Don't auto-open browser")
+  .option("--dir <path>", "Target project directory")
+  .action(async (opts: any) => {
+    const { runConfigUI } = await import("./commands/config/index.js");
+    await runConfigUI({ ...cli.globalCommand.options, ...opts });
+  });
+
+// Bare config — interactive TUI (registered after subcommands so CAC matches specific first)
 cli
   .command("config", "Interactively view and edit kit configuration")
   .option("--dir <path>", "Target project directory")
   .action(async (opts: any) => {
-    const { runConfigInteractive } = await import("./commands/config.js");
+    const { runConfigInteractive } = await import("./commands/config/index.js");
     await runConfigInteractive({ ...cli.globalCommand.options, ...opts });
   });
 

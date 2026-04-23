@@ -96,6 +96,9 @@ export interface DevWatcherOptions extends GlobalOptions {
 export interface ConfigOptions extends GlobalOptions {
   dir?: string;
   json?: boolean;
+  global?: boolean;
+  local?: boolean;
+  sources?: boolean;
 }
 
 export interface ConfigGetOptions extends ConfigOptions {
@@ -192,4 +195,11 @@ export interface UpgradeOptions extends GlobalOptions {
   noCache?: boolean;
   dir?: string;
   json?: boolean;
+}
+
+export interface ConfigUIOptions extends GlobalOptions {
+  port?: number;
+  host?: string;
+  noOpen?: boolean;
+  dir?: string;
 }

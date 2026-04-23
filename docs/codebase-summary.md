@@ -8,12 +8,12 @@ The epost-agent-kit-cli is a CLI tool for managing AI agent kit installations ac
 
 | Metric | Value |
 |--------|-------|
-| Total LOC | ~8,200+ |
+| Total LOC | ~18,875+ |
 | Commands | 7,576+ LOC (32 commands) |
 | Domains | ~8,000 LOC (15 domains) |
 | Services | 3 modules (file-operations, template-engine, transformers) |
-| Shared | 6 utilities (logger, file-system, path-resolver, terminal-utils, process-lock, environment) |
-| Tests | ~3,731 LOC (32 test files, 100% passing) |
+| Shared | 6 utilities (logger, file-system, path-resolver, terminal-utils, process-lock, environment) + constants |
+| Tests | ~3,731 LOC (33 test files, 100% passing) |
 
 ## Directory Structure
 
@@ -64,7 +64,7 @@ src/
 - `proposals.ts` - List/apply proposals
 
 ### Configuration & Tools (8)
-- `config.ts` - View/edit config
+- `config/` - Modular config command (index.ts, config-command.ts, phases/{get,set,show,reset,ignore,tui}-handler.ts, shared.ts, types.ts, config-ui-command.ts)
 - `dry-run-command.ts` - Simulate routing
 - `trace.ts` - Verbose trace
 - `fix-refs.ts` - Fix references
@@ -76,7 +76,10 @@ src/
 ## Domains (15 total)
 
 ### config/
-Configuration loading, merging, environment variables, Zod validation, cosmiconfig integration.
+Dual-layer config: GlobalConfigManager (`~/.epost-kit/config.json`) + ProjectConfigManager (`.claude/.epost-kit.json`). ConfigMerger with 3-level merge + leaf-level source tracking. Config security (file perms, prototype pollution guard, value sanitization). Config-path-utils (dot-path get/set). Files: global-config-manager.ts, project-config-manager.ts, config-merger.ts, config-security.ts, config-path-utils.ts, config-loader.ts, ignore-merger.ts, kit-config-merger.ts, settings-merger.ts, epost-config.ts, index.ts.
+
+### web-dashboard/
+Express REST API + React SPA for visual config editing via `config ui`. Lazy-loaded, zero CLI startup impact. Server: server.ts, api/config-routes.ts, api/env-helpers.ts, api/ignore-helpers.ts. UI: Vite + React SPA (ui/src/), pre-built to ui-dist/. Pages: dashboard, settings, hooks, ignore.
 
 ### conversion/
 Claude Code → GitHub Copilot format transformation (claude-parser, copilot-formatter, tool-mappers).
@@ -94,7 +97,7 @@ Environment verification (Node version, Claude dir, metadata, GitHub auth, file 
 CLAUDE.md generator, branding utilities.
 
 ### installation/
-Multi-IDE adapters (Claude, Cursor, Copilot, Export), template manager, smart merge, MDC/CLAUDE.md generators. Copilot adapter supports April 2026 VS Code agent spec with `.agent.md` output. Includes: claude-adapter.ts, cursor-adapter.ts, copilot-adapter.ts, export-adapter.ts, target-adapter.ts, mdc-generator.ts.
+Multi-IDE adapters (6 targets: Claude, Cursor, Copilot, JetBrains, Antigravity, Export), template manager, smart merge (SHA256 checksums), MDC/CLAUDE.md generators. Copilot adapter supports April 2026 VS Code agent spec with `.agent.md` output. Files: claude-adapter, cursor-adapter, copilot-adapter, jetbrains-adapter, antigravity-adapter, export-adapter, smart-merge, target-adapter, template-manager.
 
 ### packages/
 Package resolver with BFS + topological sort (Kahn's), profile loader, YAML parser, skill locator, role bundles.
@@ -140,10 +143,10 @@ TypeScript type definitions for commands, domains, and configuration.
 
 | File | LOC | Description |
 |------|-----|-------------|
-| cli.ts | 376 | Main CLI entry point |
+| cli.ts | 723 | Main CLI entry point |
 | commands/init.ts | ~200 | Initialize command |
-| domains/packages/resolver.ts | ~300 | Dependency resolution |
-| domains/installation/installer.ts | ~300 | Package installation |
+| domains/packages/package-resolver.ts | ~300 | Dependency resolution |
+| domains/installation/smart-merge.ts | ~300 | File ownership classification & merge |
 
 ## Dependencies
 
@@ -161,8 +164,8 @@ TypeScript type definitions for commands, domains, and configuration.
 ## Testing
 
 - **Framework:** Vitest 2.1.8
-- **Test Files:** 32 files (~3,731 LOC)
-- **Coverage Target:** 70%
+- **Test Files:** 33 files (~3,731 LOC)
+- **Coverage Target:** 70% (lines/functions/branches/statements)
 - **Execution:** ~1-2 seconds
 
 Test categories:

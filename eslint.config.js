@@ -32,6 +32,6 @@ export default [
     }
   },
   {
-    ignores: ['dist/', 'node_modules/', 'coverage/']
+    ignores: ['dist/', 'node_modules/', 'coverage/', 'src/domains/web-dashboard/ui-dist/', 'src/domains/web-dashboard/ui/']
   }
 ];

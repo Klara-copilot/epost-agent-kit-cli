@@ -25,5 +25,5 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "exclude": ["node_modules", "dist", "tests", "src/domains/web-dashboard/ui", "src/domains/web-dashboard/ui-dist"]
 }

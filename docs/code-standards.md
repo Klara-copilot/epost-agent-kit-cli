@@ -8,7 +8,8 @@ This document outlines development conventions for the epost-agent-kit-cli proje
 
 - **Use kebab-case** for file names with descriptive names
 - Long file names are acceptable - they should be self-documenting for LLM tools
-- Examples: `dependency-resolver.ts`, `file-ownership-tracker.ts`
+- **Package scope:** Published as `@aavn/epost-kit` (scoped npm package)
+- Examples: `dependency-resolver.ts`, `file-ownership-tracker.ts`, `smart-merge.ts`
 
 ## Code Organization
 
@@ -16,7 +17,7 @@ This document outlines development conventions for the epost-agent-kit-cli proje
 
 ```
 src/
-├── cli.ts              # Main CLI entry point (376 LOC)
+├── cli.ts              # Main CLI entry point (723 LOC)
 ├── commands/           # 32 command files
 │   ├── add.ts
 │   ├── browse.ts
@@ -50,14 +51,14 @@ src/
 │   ├── versions.ts
 │   ├── roles.ts
 │   └── workspace.ts
-├── domains/            # 15 domain areas
-│   ├── config/         # Configuration loading and validation
+├── domains/            # 14 domain areas
+│   ├── config/         # Dual-layer config: global + project managers, merger, security
 │   ├── conversion/     # Claude to Copilot format conversion
 │   ├── error/          # Error handling and types
 │   ├── github/         # GitHub API integration
 │   ├── health-checks/  # Environment verification
 │   ├── help/           # Help and CLAUDE.md generation
-│   ├── installation/   # Installation and multi-IDE adapters
+│   ├── installation/   # Installation and multi-IDE adapters (6 targets)
 │   ├── packages/       # Package management and resolution
 │   ├── proposals/      # Feature proposals
 │   ├── resolver/       # Dependency resolution
@@ -65,6 +66,7 @@ src/
 │   ├── ui/             # Terminal UI components
 │   ├── validation/     # Reference validation
 │   └── versioning/     # Version management
+│   └── web-dashboard/ # Express REST API + React SPA (config ui)
 ├── services/          # Cross-cutting services
 ├── shared/            # Infrastructure utilities
 └── types/             # TypeScript definitions
@@ -107,6 +109,42 @@ src/
 - Run `npm run lint` before commit
 - Run `npm test` before push
 - Run `npm run typecheck` for type validation
+
+## Architectural Patterns
+
+### Static Facade Pattern
+Used for config managers to avoid DI framework overhead.
+- Class with only static methods
+- Single file, single responsibility
+- Example: `GlobalConfigManager`, `ProjectConfigManager`
+
+```typescript
+class GlobalConfigManager {
+  static getPath(): string { ... }
+  static async load(): Promise<Record<string, any>> { ... }
+  static async set(key: string, value: unknown): Promise<void> { ... }
+}
+```
+
+### Phase Handler Pattern
+Used to decompose large command files into modular handlers.
+- Each subcommand gets its own handler file in `phases/` directory
+- Shared types and utilities in `phases/shared.ts` and `types.ts`
+- Main command file registers handlers via index re-export
+- Example: `src/commands/config/phases/{get,set,show,reset,ignore,tui}-handler.ts`
+
+```
+commands/config/
+├── index.ts              # Re-exports
+├── config-command.ts     # Main command registration
+├── config-ui-command.ts  # Web dashboard subcommand
+├── types.ts              # Shared types
+├── phases/
+│   ├── shared.ts         # Shared utilities
+│   ├── get-handler.ts    # config get
+│   ├── set-handler.ts    # config set
+│   └── ...
+```
 
 ## Git Conventions
 

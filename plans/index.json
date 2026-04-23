@@ -34,5 +34,14 @@
     "effort": "8h",
     "title": "Adapter open points: CursorAdapter, .mdc rules, handoff graph",
     "path": "plans/260308-1504-adapter-open-points/"
+  },
+  {
+    "date": "260410-1342",
+    "slug": "config-system-redesign",
+    "status": "active",
+    "phases": 7,
+    "effort": "28h",
+    "title": "Config System Redesign: dual-layer config, source tracking, web dashboard",
+    "path": "plans/0410-1342-config-system-redesign/"
   }
 ]

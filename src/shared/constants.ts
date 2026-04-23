@@ -48,3 +48,8 @@ export const IDE_TARGETS = {
  * Metadata file for tracking installed files and ownership
  */
 export const METADATA_FILE = '.epost-metadata.json';
+
+/**
+ * Keys that must be stripped during config merging to prevent prototype pollution
+ */
+export const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'] as const;

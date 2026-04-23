@@ -1,6 +1,6 @@
 # epost-kit CLI
 
-Distribution CLI for epost-agent-kit — installs and manages the multi-IDE AI agent framework across Claude Code, Cursor, and VS Code GitHub Copilot.
+Distribution CLI for epost-agent-kit — installs and manages the multi-IDE AI agent framework across 6 IDE targets: Claude Code, Cursor, VS Code Copilot, JetBrains, Antigravity, and Export.
 
 **Version:** 0.0.1 | **Node:** >= 18.0.0 | **License:** MIT
 
@@ -11,6 +11,8 @@ Distribution CLI for epost-agent-kit — installs and manages the multi-IDE AI a
 **Prerequisites:** Node.js >= 18, git
 
 Note: GitHub CLI (gh) is required after install to use `epost-kit install`.
+
+**Supported IDE Targets:** Claude Code, Cursor, VS Code Copilot (April 2026 spec), JetBrains IDEs, Antigravity, Export/portable
 
 ### Recommended — npm (all platforms)
 
@@ -89,7 +91,10 @@ epost-kit install --source /path/to/kit        # use local source (dev)
 |------|-------------|--------|
 | `--target claude` *(default)* | `.claude/` | Claude Code agents |
 | `--target cursor` | `.cursor/` + `.cursor/rules/` | Cursor agents + `.mdc` rules |
-| `--target vscode` | `.github/` | Copilot `.agent.md` + `hooks.json` |
+| `--target vscode` | `.github/` | Copilot `.agent.md` (April 2026 spec) |
+| `--target jetbrains` | `.idea/` | JetBrains IDEs |
+| `--target antigravity` | `.antigravity/` | Antigravity IDE |
+| `--target export` | `./export/` | Portable export format |
 
 ---
 

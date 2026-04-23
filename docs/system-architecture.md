@@ -49,13 +49,13 @@ The epost-agent-kit-cli follows a clean 4-layer architecture with strict separat
 ### Package Resolution
 - **Algorithm:** Topological sort (Kahn's algorithm)
 - **Purpose:** Dependency ordering for installation
-- **File:** `domains/packages/resolver.ts`
+- **File:** `domains/packages/package-resolver.ts`
 
 ### Smart Merge
-- **Algorithm:** Three-tier file ownership classification
-- **Tiers:** epost-owned, modified, user-created
-- **Purpose:** Prevent data loss during updates
-- **File:** `domains/installation/merger.ts`
+- **Algorithm:** Three-tier file ownership classification via SHA256 checksums
+- **Tiers:** kit-owned (checksum match), user-modified (checksum diverged), new files
+- **Purpose:** Prevent data loss during updates; preserve user-modified files
+- **File:** `domains/installation/smart-merge.ts`
 
 ### Template Engine
 - **Type:** Custom regex-based renderer
@@ -97,29 +97,76 @@ User Input → CLI Layer → Commands Layer → Domains Layer → Services/Share
 
 ## Configuration
 
-### User Configuration
+### Dual-Layer Config System
+
+Config values come from two layers, merged at runtime with per-field source tracking.
+
+| Layer | Path | Scope |
+|-------|------|-------|
+| Global | `~/.epost-kit/config.json` | User-wide defaults across all projects |
+| Project | `.claude/.epost-kit.json` | Per-project overrides |
+
+### 3-Level Merge (ConfigMerger)
+
+Merge order: **code defaults -> global -> project** (project wins).
+
+```
+src/domains/config/config-merger.ts
+```
+
+- Leaf-level source tracking: every value labeled `default | global | project`
+- `config show --sources` displays where each value originates
+- Used by both CLI commands and web dashboard
+
+### Static Facade Classes
+
+No DI framework. Plain static methods, following claudekit-cli pattern.
+
+| Class | File | Manages |
+|-------|------|---------|
+| `GlobalConfigManager` | `global-config-manager.ts` | `~/.epost-kit/config.json` (read, write, get/set by dot-path) |
+| `ProjectConfigManager` | `project-config-manager.ts` | `.claude/.epost-kit.json` (read, write, get/set by dot-path) |
+
+### Config Security
+
+| Measure | Implementation |
+|---------|---------------|
+| File permissions | `0o600` for config files, `0o700` for `~/.epost-kit/` directory |
+| Prototype pollution guard | `DANGEROUS_KEYS` (`__proto__`, `constructor`, `prototype`) stripped on all merges |
+| Value sanitization | Functions and symbols recursively removed before write |
+
+File: `src/domains/config/config-security.ts`
+
+### Web Dashboard
+
+`config ui` launches an Express + React SPA for visual config editing.
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| REST API server | `src/domains/web-dashboard/server.ts` | Express, auto-port 3456-3460, localhost-only |
+| API routes | `src/domains/web-dashboard/api/config-routes.ts` | GET/PUT `/api/config`, GET `/api/status` |
+| React SPA | `src/domains/web-dashboard/ui/` | Vite + React, pre-built to `ui-dist/` |
+
+- **Lazy-loaded**: Express/React only imported on `config ui`, zero impact on CLI startup
+- **Backward-compatible**: existing `.epost-kit.json` reads as project-level, no migration needed
+
+### Legacy Config (cosmiconfig)
+
 Supported files (in order of precedence):
 1. `.epostrc` (INI format)
 2. `.epostrc.json` (JSON)
 3. `.epostrc.yaml` (YAML)
 
-### Configuration Options
-```json
-{
-  "target": "claude",
-  "installDir": ".claude",
-  "repository": "https://github.com/Klara-copilot/epost_agent_kit",
-  "protectedPatterns": [".git/**", "*.env", "*.key"]
-}
-```
-
-## Domains (15 total)
+## Domains (14 total)
 
 ### config/
-Multi-level config loading (env > local > global), Zod validation, cosmiconfig integration.
+Dual-layer config system: GlobalConfigManager (`~/.epost-kit/config.json`) + ProjectConfigManager (`.claude/.epost-kit.json`), 3-level merge with leaf-level source tracking (ConfigMerger), security hardening (file perms, prototype pollution guard), config-path-utils (dot-path get/set), cosmiconfig integration.
+
+### web-dashboard/
+Express REST API server + React SPA for visual config editing (`config ui`). Lazy-loaded on demand, zero CLI startup impact. Files: server.ts, api/config-routes.ts, api/env-helpers.ts, api/ignore-helpers.ts, ui/ (Vite + React SPA).
 
 ### installation/
-Multi-IDE adapters (Claude, Cursor, Copilot, Export), template manager, smart merge, file generators. Copilot adapter generates `.agent.md` files per April 2026 VS Code spec. Supports claude-adapter, cursor-adapter, copilot-adapter, export-adapter, target-adapter, mdc-generator.
+Multi-IDE adapters (6 targets: Claude, Cursor, Copilot, JetBrains, Antigravity, Export), template manager, smart merge (SHA256 checksums), file generators. Copilot adapter generates `.agent.md` files per April 2026 VS Code spec. Adapters: claude-adapter, cursor-adapter, copilot-adapter, jetbrains-adapter, antigravity-adapter, export-adapter, smart-merge, target-adapter.
 
 ### packages/
 Package resolver with BFS + topological sort, profile loader, YAML parser, skill locator.

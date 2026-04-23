@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "description": "epost-agent-kit-cli Knowledge Base Registry (@aavn/epost-kit v0.0.1)",
-  "updatedAt": "2026-04-03T12:39:00Z",
+  "updatedAt": "2026-04-10T17:20:00Z",
   "entries": [
     {
       "id": "ARCH-001",
@@ -23,7 +23,7 @@
       "title": "Codebase Summary",
       "category": "architecture",
       "file": "codebase-summary.md",
-      "description": "High-level overview of 8,200+ LOC codebase: 4-layer architecture, 32 commands, 15 domain areas, test coverage, and key files with LOC breakdown.",
+      "description": "High-level overview of 8,200+ LOC codebase: 4-layer architecture, 32 commands, 15 domain areas (including config dual-layer + web-dashboard), test coverage, and key files with LOC breakdown.",
       "tags": [
         "codebase-structure",
         "statistics",
@@ -38,14 +38,16 @@
       "title": "System Architecture",
       "category": "architecture",
       "file": "system-architecture.md",
-      "description": "4-layer clean architecture design: CLI → Commands → Domains → Services/Shared. Core algorithms (topological sort, smart merge, YAML parser), data flow, file safety system, and 15 domain responsibilities.",
+      "description": "4-layer clean architecture design: CLI → Commands → Domains → Services/Shared. Core algorithms (topological sort, smart merge, YAML parser), data flow, file safety system, dual-layer config system (global + project, 3-level merge with source tracking, web dashboard), and 16 domain responsibilities.",
       "tags": [
         "architecture",
         "layers",
         "algorithms",
         "design-patterns",
         "data-flow",
-        "file-safety"
+        "file-safety",
+        "config-system",
+        "web-dashboard"
       ],
       "agentHint": "architect, fullstack-developer, code-reviewer"
     },
@@ -54,14 +56,16 @@
       "title": "Code Standards",
       "category": "conventions",
       "file": "code-standards.md",
-      "description": "Development conventions: kebab-case naming, <200 LOC modularization, TypeScript strict mode, error handling, testing targets (70% coverage), and git commit format (conventional commits).",
+      "description": "Development conventions: kebab-case naming, <200 LOC modularization, TypeScript strict mode, error handling, testing targets (70% coverage), git commit format, static facade pattern, phase handler pattern for command decomposition.",
       "tags": [
         "naming-conventions",
         "modularization",
         "typescript",
         "error-handling",
         "testing",
-        "git-workflow"
+        "git-workflow",
+        "static-facade-pattern",
+        "phase-handler-pattern"
       ],
       "agentHint": "code-reviewer, fullstack-developer"
     },
@@ -70,7 +74,7 @@
       "title": "Project Roadmap",
       "category": "guides",
       "file": "project-roadmap.md",
-      "description": "Release roadmap: v0.0.1 complete (npm release @aavn/epost-kit, 32 commands, multi-platform, 103 tests), v0.1.0 planned (semver constraints, caching), phases 1-2 complete, phases 3+ future. Includes contribution guidelines.",
+      "description": "Release roadmap: v0.0.1 complete (npm release @aavn/epost-kit, 32 commands, multi-platform), config system redesign complete (dual-layer config, source tracking, web dashboard), v0.1.0 planned (semver constraints, caching). Includes contribution guidelines.",
       "tags": [
         "roadmap",
         "releases",

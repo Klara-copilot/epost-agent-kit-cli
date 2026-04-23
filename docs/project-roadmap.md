@@ -2,19 +2,19 @@
 
 ## Current Status
 
-**Version:** 0.1.0 (maintenance release, @aavn/epost-kit)
-**Last Updated:** 2026-04-06
+**Version:** 0.0.1 (public npm release, @aavn/epost-kit)
+**Last Updated:** 2026-04-10
 **Test Status:** ~3,731 test LOC across 32 files (100% passing)
 
 ## Completed Features
 
-### v0.1.0 (Current - Maintenance & Spec Updates)
+### v0.0.1 (Current - Public npm Release)
 - 32 commands across 6 categories
-- Multi-platform support (Claude Code, Cursor, GitHub Copilot)
+- Multi-platform support: 6 IDE adapters (Claude Code, Cursor, VS Code Copilot, JetBrains, Antigravity, Export)
 - April 2026 VS Code agent spec support (copilot-adapter outputs `.agent.md`)
 - Package management with topological sort dependency resolution
 - Profile system with auto-detection and multi-profile selection
-- Smart merge with file ownership tracking via SHA256 checksums
+- Smart merge with file ownership tracking via SHA256 checksums (kit-owned vs user-modified classification)
 - Health checks with auto-fix capabilities
 - Dev watcher for kit designers with live-sync
 - Claude Code → GitHub Copilot format conversion
@@ -22,9 +22,13 @@
 - Structured validation (config, skills, routing, delegation, hooks)
 - TUI marketplace browser for discovery
 - ~3,731 test LOC (100% passing)
+- Published to npm as `@aavn/epost-kit` v0.0.1 (public registry)
 - CI/CD improvements (manual publish workflow, validation scripts)
+- Config system redesign: dual-layer config (global `~/.epost-kit/config.json` + project `.claude/.epost-kit.json`), 3-level merge with source tracking, static facade managers, security hardening (file perms, prototype pollution guard), Express + React web dashboard (`config ui`)
 
-### Recent Commits
+### v0.1.0 (Next)
+- [x] Config system redesign (dual-layer, source tracking, web dashboard)
+- [ ] Semver dependency constraints
 - Merge PR #11: Copilot spec update (April 2026)
 - test(path-resolver): CI compatibility fix
 - ci: add manual publish workflow and validation scripts
@@ -36,33 +40,17 @@
 
 ## Planned Features
 
-### v0.2.0 (Next)
+### v0.1.0 (Next)
 - [ ] Semver dependency constraints
 - [ ] Advanced package versioning
 - [ ] Local package caching (offline mode)
 - [ ] Enhanced package search and discovery
 - [ ] Performance optimizations for large package sets
 
-### v0.3.0 (Future)
+### v0.2.0 (Future)
 - [ ] Team-level configuration sync
 - [ ] Shared profile repositories
 - [ ] Multi-user conflict resolution
-
-## v0.0.1 Completed Features
-
-### Public npm release
-Published as scoped package `@aavn/epost-kit` to npmjs.com registry. Primary distribution method via `npm install -g @aavn/epost-kit`.
-
-### convert command
-Converts Claude Code commands/agents/skills to GitHub Copilot format. Full implementation with format conversion logic and validation.
-
-## v0.1.0 Improvements
-
-### Copilot April 2026 spec support
-Updated copilot-adapter to support latest VS Code agent spec (April 2026). Now outputs `.agent.md` files to `.github/agents/` with proper frontmatter structure.
-
-### CI/CD enhancements
-Added manual publish workflow and npm-pack validation scripts for improved release reliability.
 
 ## Milestones
 
@@ -77,6 +65,14 @@ Added manual publish workflow and npm-pack validation scripts for improved relea
 - GitHub Copilot integration
 - Cursor integration
 - Convert command
+
+### Phase 2.5: Config System Redesign (Complete)
+- Dual-layer config (global + project)
+- 3-level merge with leaf-level source tracking
+- Static facade managers (GlobalConfigManager, ProjectConfigManager)
+- Security hardening (file permissions, prototype pollution guard)
+- Express + React web dashboard (`config ui`)
+- Phase handler pattern for command decomposition
 
 ### Phase 3: Enterprise Features (Planned)
 - Team configuration sync
@@ -95,6 +91,7 @@ Added manual publish workflow and npm-pack validation scripts for improved relea
 | Core Foundation | Complete | 100% |
 | Multi-Platform | Complete | 100% |
 | April 2026 Spec Update | Complete | 100% |
+| Config System Redesign | Complete | 100% |
 | Enterprise Features | Planned | 0% |
 | Ecosystem | Future | 0% |
 

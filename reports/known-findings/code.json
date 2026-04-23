@@ -1,0 +1,110 @@
+{
+  "schema": "code-known-findings/v1",
+  "lastUpdated": "2026-04-10",
+  "findings": [
+    {
+      "id": "SEC-2026-0410-001",
+      "file": "src/domains/web-dashboard/server.ts",
+      "line": 92,
+      "category": "SEC",
+      "severity": "high",
+      "title": "REST API has zero authentication",
+      "owasp": "A01 — Broken Access Control",
+      "description": "Server binds to localhost but has no auth middleware. Any local process can read/write config and env vars.",
+      "verdict": "ACCEPT",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    },
+    {
+      "id": "SEC-2026-0410-002",
+      "file": "src/domains/web-dashboard/api/config-routes.ts",
+      "line": 52,
+      "category": "SEC",
+      "severity": "high",
+      "title": "API PUT /config/:scope/:key does not validate against prototype pollution",
+      "owasp": "Injection",
+      "description": "The :key param is passed directly to setByPath without DANGEROUS_KEYS check.",
+      "verdict": "ACCEPT",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    },
+    {
+      "id": "SEC-2026-0410-003",
+      "file": "src/domains/config/config-path-utils.ts",
+      "line": 18,
+      "category": "SEC",
+      "severity": "high",
+      "title": "setByPath does not guard against DANGEROUS_KEYS",
+      "owasp": "Injection",
+      "description": "setByPath blindly traverses and sets any path segment including __proto__, constructor, prototype.",
+      "verdict": "ACCEPT",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    },
+    {
+      "id": "SEC-2026-0410-004",
+      "file": "src/commands/config/phases/shared.ts",
+      "line": 59,
+      "category": "SEC",
+      "severity": "medium",
+      "title": "writeKitConfig bypasses file permissions enforcement",
+      "owasp": "A02 — Cryptographic Failures",
+      "description": "Uses raw writeFile instead of safeWriteFile + enforceFilePermissions. Config files have default 644 permissions.",
+      "verdict": "ACCEPT",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    },
+    {
+      "id": "STATE-2026-0410-001",
+      "file": "src/commands/config/phases/shared.ts",
+      "line": null,
+      "category": "STATE",
+      "severity": "medium",
+      "title": "Concurrent writes can corrupt config (last-writer-wins data loss)",
+      "owasp": null,
+      "description": "Two config set processes running simultaneously will silently lose one write.",
+      "verdict": "ACCEPT",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    },
+    {
+      "id": "SEC-2026-0410-005",
+      "file": "src/domains/web-dashboard/api/config-routes.ts",
+      "line": 162,
+      "category": "SEC",
+      "severity": "low",
+      "title": "REST API env key input not validated for safe characters",
+      "owasp": "A03 — Injection",
+      "description": "PUT /env/:key allows arbitrary key strings including special chars that could corrupt .env file.",
+      "verdict": "ACCEPT",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    },
+    {
+      "id": "SEC-2026-0410-006",
+      "file": "src/domains/config/settings-merger.ts",
+      "line": 14,
+      "category": "SEC",
+      "severity": "low",
+      "title": "deepMerge in settings-merger.ts unprotected against DANGEROUS_KEYS",
+      "owasp": null,
+      "description": "deepMerge does not filter __proto__/constructor/prototype keys. Only called from controlled internal pipelines.",
+      "verdict": "DEFER",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    },
+    {
+      "id": "DEAD-2026-0410-001",
+      "file": "src/domains/config/config-security.ts",
+      "line": 19,
+      "category": "DEAD",
+      "severity": "low",
+      "title": "sanitizeConfigValue exported but never called",
+      "owasp": null,
+      "description": "Utility function that strips functions/symbols from config values has zero callers.",
+      "verdict": "DEFER",
+      "status": "open",
+      "firstSeen": "2026-04-10"
+    }
+  ]
+}

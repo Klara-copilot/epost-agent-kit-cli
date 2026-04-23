@@ -4,7 +4,7 @@
 
 **Project Name:** epost-agent-kit-cli
 **Project Type:** CLI Tool (Command-Line Interface)
-**Version:** 0.1.0 (npm: @aavn/epost-kit)
+**Version:** 0.0.1 (npm: @aavn/epost-kit)
 
 ## Purpose
 
@@ -22,10 +22,10 @@ Developers need a unified way to manage AI agent configurations across multiple 
 
 1. **Unified Package Management** - Modular installation with automatic dependency resolution
 2. **Profile System** - Team-based configurations with auto-detection
-3. **Smart Merge** - Intelligent file tracking prevents data loss during updates
+3. **Smart Merge** - Intelligent file tracking (SHA256 checksums) prevents data loss during updates
 4. **Dev Watcher** - Live-sync for kit designers during development
 5. **Health Checks** - Environment verification with auto-fix capabilities
-6. **Multi-Platform Support** - Claude, Cursor, and GitHub Copilot
+6. **Multi-Platform Support** - 6 IDE targets: Claude Code, Cursor, VS Code Copilot (April 2026 spec), JetBrains, Antigravity, Export
 
 ## Commands (32 total, 6 categories)
 
